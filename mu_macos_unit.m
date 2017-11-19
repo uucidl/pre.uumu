@@ -34,6 +34,7 @@
 // controllers, check @fn{mu_gamepad_initialize} and how it sets the
 // hid mapping table.
 //
+//
 // Implementation Details
 // ----------------------
 //
@@ -45,8 +46,6 @@
 //
 // Nevertheless if you have any problem with them, simply define
 // MU_MACOS_RUN_MODE_PLAIN before compiling.
-
-// @todo undef all defined macros
 
 #if MU_MACOS_RUN_MODE == MU_MACOS_RUN_MODE_COROUTINE
 #define _XOPEN_SOURCE 600
@@ -131,7 +130,27 @@ enum {
 //
 // We here define some data-structures to map normal HID elements to
 // what we effectively want for the gamepad.
+//
+// On Macos, use ioreg -p IOUSB to see USB devices
+// ioreg -l to show all their properties.
 
+
+// @idea{
+// Thresholds and deadzones for thumbsticks
+// see @url: http://www.third-helix.com/2013/04/12/doing-thumbstick-dead-zones-right.html
+//
+// The author recommend rather than independendant fabs(x) thresholds to use either:
+//
+// - axial deadzone (independant) - helps with 4 way movements
+// - radial deadzone (euclidean) - helps with sweeps
+// - normalized radial deadzone - for 3d pointing
+//
+// The best API style would allow users to set those up depending on the interaction style.
+// }
+
+// @todo @idea{
+// @url: https://github.com/gabomdq/SDL_GameControllerDB
+// }
 struct Mu_HIDAddress
 {
      uint16_t usage_page;
@@ -606,8 +625,8 @@ Mu_Bool mu_window_initialize(struct Mu *mu, struct Mu_Session* session)
 #define get_opt(x, x_ifnull) (x)? (x) : (x_ifnull)
      char const* const window_title = get_opt(mu->window.title, "Mu");
      mu->window.title = (char*)window_title;
-     int window_x = get_opt(mu->window.position.x, 0); // @todo: centering horizontally
-     int window_y = get_opt(mu->window.position.y, 0); // @todo: centering vertically
+     int window_x = get_opt(mu->window.position.x, 0);
+     int window_y = get_opt(mu->window.position.y, 0);
      int const window_width = get_opt(mu->window.size.x, MU_DEFAULT_WIDTH);
      int const window_height = get_opt(mu->window.size.y, MU_DEFAULT_HEIGHT);
 #undef get_opt
@@ -764,12 +783,12 @@ void mu_gamepad_hid_input_value_callback(void *context, IOReturn result, void *s
      MU_GAMEPAD_STICKS_XENUM;
 #undef X
      
-#if 0
-     float analog = IOHIDValueGetScaledValue(value, kIOHIDValueScaleTypeCalibrated);
+#if 0 // @debug show HID values/messages
+     float analog = IOHIDValueGetScaledValue(value, kIOHIDValueScaleTypePhysical);
      // Button debugging
      if (address.usage_page == 0x09 && state != 0)
-	  MU_MACOS_TRACEF("Gamepad: InputValue: usagePage: 0x%02X, usage 0x%02X, value: %ld / %f\n", address.usage_page, address.usage, state, analog);
-      MU_MACOS_TRACEF("Gamepad: InputValue: usagePage: 0x%02X, usage 0x%02X, value: %ld / %f\n", address.usage_page, address.usage, state, analog);
+	  MU_MACOS_TRACEF("Gamepad: InputValue: usagePage: 0x%02X, usage 0x%02X, value: %d / %f\n", address.usage_page, address.usage, state, analog);
+      MU_MACOS_TRACEF("Gamepad: InputValue: usagePage: 0x%02X, usage 0x%02X, value: %d / %f\n", address.usage_page, address.usage, state, analog);
 #endif
 }
 
@@ -849,6 +868,42 @@ struct Mu_Gamepad_HID_Mapping const mu_ds4_mapping = {
      },
 };
 
+// This is niche, but I have one of these and its nice to have an example of an alternate mapping
+MU_MACOS_INTERNAL
+struct Mu_Gamepad_HID_Mapping const mu_huijia_3_0xe8f_0x3013_mapping = {
+     .a_button = { .address = { .usage_page = kHIDPage_Button, .usage = 0x03, },},
+     .b_button = { .address = { .usage_page = kHIDPage_Button, .usage = 0x02 },},
+     .x_button = { .address = { .usage_page = kHIDPage_Button, .usage = 0x04 },},
+     .y_button = { .address = { .usage_page = kHIDPage_Button, .usage = 0x01 },},
+     .left_shoulder_button = { .address = { .usage_page = kHIDPage_Button, .usage = 0x07 },},
+     .right_shoulder_button = { .address = { .usage_page = kHIDPage_Button, .usage = 0x08 },},
+     .left_thumb_button = { .address = { .usage_page = kHIDPage_Button, .usage = 0xB },},
+     .right_thumb_button = { .address = { .usage_page = kHIDPage_Button, .usage = 0xC },},
+     .back_button = { .address = { .usage_page = kHIDPage_Button, .usage = 0x9 },}, // share button
+     .start_button = { .address = { .usage_page = kHIDPage_Button, .usage = 0xA },}, // option button
+     .up_button = { .address = { .usage_page = kHIDPage_GenericDesktop, .usage = 0x39 }, .states_n = 3, .states = { 0, 1, 7 } },
+     .down_button = { .address = { .usage_page = kHIDPage_GenericDesktop, .usage = 0x39 }, .states_n = 3, .states = { 3, 4, 5} },
+     .left_button = { .address = { .usage_page = kHIDPage_GenericDesktop, .usage = 0x39 }, .states_n = 3, .states = { 7, 6, 5 } },
+     .right_button = { .address = { .usage_page = kHIDPage_GenericDesktop, .usage = 0x39 }, .states_n = 3, .states = { 3, 2, 1, } },
+     .left_trigger = {
+	  .address = { .usage_page = kHIDPage_Button, .usage = 0x05 },
+	  .xmin = 0.0f, .xmax = 1.0f
+     },
+     .right_trigger = {
+	  .address = { .usage_page = kHIDPage_Button, .usage = 0x06 },
+	  .xmin = 0.0f, .xmax = 1.0f
+     },
+     .left_thumb_stick = {
+	  .x_address = { .usage_page = kHIDPage_GenericDesktop, .usage = kHIDUsage_GD_X }, .y_address = { .usage_page = kHIDPage_GenericDesktop, .usage = kHIDUsage_GD_Y },
+	  .xmin = 0.0f, .xmax = 255.0f, .ymin = 0.0f, .ymax = 255.0f,
+     },
+     .right_thumb_stick = {
+	  .x_address = { .usage_page = kHIDPage_GenericDesktop, .usage = kHIDUsage_GD_Rz },
+	  .y_address = { .usage_page = kHIDPage_GenericDesktop, .usage = kHIDUsage_GD_Z },
+	  .xmin = 0.0f, .xmax = 255.0f, .ymin = 0.0f, .ymax = 255.0f,
+     },
+};
+
 MU_MACOS_INTERNAL
 Mu_Bool mu_gamepad_initialize(struct Mu *mu, struct Mu_Session *session)
 {
@@ -858,21 +913,24 @@ Mu_Bool mu_gamepad_initialize(struct Mu *mu, struct Mu_Session *session)
 	  goto error;
      }
      NSArray *device_matching_array = @[
-	  @{@(kIOHIDDeviceUsagePageKey): @(kHIDPage_GenericDesktop), @(kIOHIDDeviceUsageKey): @(kHIDUsage_GD_GamePad)},
+	  @{@(kIOHIDDeviceUsagePageKey): @(kHIDPage_GenericDesktop), @(kIOHIDDeviceUsageKey): @(kHIDUsage_GD_Joystick)},
+          @{@(kIOHIDDeviceUsagePageKey): @(kHIDPage_GenericDesktop), @(kIOHIDDeviceUsageKey): @(kHIDUsage_GD_GamePad)}, // DS4
 	  @{@(kIOHIDDeviceUsagePageKey): @(kHIDPage_GenericDesktop), @(kIOHIDDeviceUsageKey): @(kHIDUsage_GD_MultiAxisController)},
      ];
+     
      NSArray *input_value_matching_array = @[
 	  @{@(kIOHIDElementUsagePageKey): @(kHIDPage_GenericDesktop)},
 	  @{@(kIOHIDElementUsagePageKey): @(kHIDPage_Button)},	  
      ];
-     
+     [input_value_matching_array retain];
      IOHIDManagerSetDeviceMatchingMultiple(manager, (__bridge CFArrayRef)device_matching_array);
 
      // Initial set
      NSSet *devices = (__bridge NSSet*)IOHIDManagerCopyDevices(manager);
      MU_MACOS_TRACEF("Gamepad: found %lu controllers\n", [devices count]);
      IOHIDDeviceRef device;
-     for (NSEnumerator *device_enumerator = [devices objectEnumerator]; (device = (IOHIDDeviceRef)[device_enumerator nextObject]); ) {
+     for (NSEnumerator *device_enumerator = [devices objectEnumerator];
+	  !mu->gamepad.connected && (device = (IOHIDDeviceRef)[device_enumerator nextObject]); ) {
 	  NSUInteger vid = [(__bridge NSNumber *)IOHIDDeviceGetProperty(device, CFSTR(kIOHIDVendorIDKey)) unsignedIntegerValue];
 	  NSUInteger pid = [(__bridge NSNumber *)IOHIDDeviceGetProperty(device, CFSTR(kIOHIDProductIDKey)) unsignedIntegerValue];
 	  if (vid == /* Sony */ 0x054c && pid == /* Dual Shock 4 */ 0x05c4) {
@@ -884,13 +942,23 @@ Mu_Bool mu_gamepad_initialize(struct Mu *mu, struct Mu_Session *session)
 	       struct Mu_DS4_Input_Report *report_buffer = calloc(1, sizeof *report_buffer); // @todo @leak
 	       IOHIDDeviceRegisterInputReportCallback(device, (uint8_t*)report_buffer, sizeof *report_buffer, mu_gamepad_hid_input_report_callback, session);
 #endif // experimental
-	       mu->gamepad.connected = MU_TRUE;
 	       session->gamepad_hid_mapping = mu_ds4_mapping;
+	       mu->gamepad.connected = MU_TRUE;
+	  } else if (vid == 0xe8f && pid == 0x3013) {
+	       MU_MACOS_TRACEF("Gamepad: found HuiJia USB Gamepad connector\n");       
+	       IOHIDDeviceRegisterInputValueCallback(device, mu_gamepad_hid_input_value_callback, (void *)session);
+	       IOHIDDeviceSetInputValueMatchingMultiple(device, (__bridge CFArrayRef)input_value_matching_array);
+	       session->gamepad_hid_mapping = mu_huijia_3_0xe8f_0x3013_mapping;
+	       mu->gamepad.connected = MU_TRUE;
 	  } else {
 	       MU_MACOS_TRACEF("Gamepad: skipping device 0x%0lx 0x%0lx\n", vid, pid);
+	       mu->gamepad.connected = MU_TRUE;
+	       session->gamepad_hid_mapping = mu_ds4_mapping;
 	  }
      }
-     // @todo establish live feedback
+     [input_value_matching_array release], input_value_matching_array = nil;
+     
+     // @todo establish live feedback. However doesn't that necessitate changing the API?
      IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
      
      session->hidmanager = manager;
@@ -920,7 +988,7 @@ void mu_gamepad_pull(struct Mu *mu, struct Mu_Session *session)
      MU_GAMEPAD_STICKS_XENUM
 #undef X
 
-#if 0 // Show each press
+#if 0 // Show each press @debug
 #define X(button_name) if (mu->gamepad.button_name.pressed) MU_MACOS_TRACEF("pressed: " #button_name "\n");
      MU_GAMEPAD_DIGITAL_BUTTONS_XENUM;
      MU_GAMEPAD_ANALOG_BUTTONS_XENUM;

@@ -35,14 +35,22 @@ Provide state of controls rather than exposing an event queue to its
 users, since since multimedia applications would anyway have to
 sample/refresh at a high enough rate anyway.
 
-In case where naïve could lose events, streamline the API by
-constructing buffers of prepared data, such as the utf8 text been
-input between the two samples.
+In cases where naïve state-capture would lose events, such as for text,
+the API prepares buffers of prepared data representing the aggregate
+input between two frames.
 
 Compromises:
 
 As of stream #2, audio has been implemented via a callback, pulling
 samples regularly from the high priority audio thread.
+
+Experiments to try:
+
+- The input/output struct is plain old data (if you except the
+  platform specific handles) ; which means it should be trivial to
+  record sequence of values to replay back the application eventually.
+
+Some other personal comments:
 
 A push API for audio is certainly possible, however I personally think
 if it make sense, it should prevent gaps in audio as the result of a
@@ -53,12 +61,6 @@ samples, while convenient for mixing in samples coming from audio
 files, make synthesis cases less natural. It's easier and less error
 prone to use float within the 0..1 interval as a generic
 representation of audio samples.
-
-Experiments:
-
-- The input/output struct is plain old data (if you except the
-  platform specific handles) ; which means it should be trivial to
-  record sequence of values to replay back the application eventually.
 
 - The win32 implementation deals with recursive main loops using
 Windows coroutine/fiber API. On Macos, there are examples of people

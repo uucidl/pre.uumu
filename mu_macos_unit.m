@@ -393,6 +393,8 @@ mu_audio_output_start(struct Mu *mu, struct Mu_Session *session)
 
      int selected_stream_i = streams_n;
      AudioStreamRangedDescription selected_format;
+
+     AudioStreamRangedDescription *formats = calloc(1, sizeof *formats);
      
      for(int stream_i = 0; stream_i < streams_n; ++stream_i) {
 	  AudioStreamID const stream = streams[stream_i];
@@ -400,28 +402,27 @@ mu_audio_output_start(struct Mu *mu, struct Mu_Session *session)
 
 	  UInt32 starting_channel;
 	  for (UInt32 size = sizeof starting_channel; stream_status = AudioObjectGetPropertyData(stream, &((AudioObjectPropertyAddress){.mSelector=kAudioStreamPropertyStartingChannel, .mScope=kAudioObjectPropertyScopeGlobal, .mElement=kAudioObjectPropertyElementMaster}), 0, NULL, &size, &starting_channel), stream_status != noErr; ) {
-	       goto skip_stream;
+	       continue;
 	  }
 	  if (starting_channel != left_right_channels[0] && starting_channel != left_right_channels[1]) {
-	       goto skip_stream;
+	       continue;
 	  }
 
 	  UInt32 formats_size;
 	  if (stream_status = AudioObjectGetPropertyDataSize(stream, &((AudioObjectPropertyAddress){.mSelector=kAudioStreamPropertyAvailableVirtualFormats, .mScope=kAudioObjectPropertyScopeGlobal, .mElement=kAudioObjectPropertyElementMaster}), 0, NULL, &formats_size), stream_status != noErr) {
-	       goto skip_stream;
+	       continue;
 	  }
-	  AudioStreamRangedDescription *formats;
 	  int const formats_n = formats_size / sizeof *formats;
-	  formats = calloc(formats_n + 1, sizeof *formats);
+	  formats = realloc(formats, (formats_n + 1) * (sizeof *formats));
 	  if (stream_status = AudioObjectGetPropertyData(stream, &((AudioObjectPropertyAddress){.mSelector=kAudioStreamPropertyAvailableVirtualFormats, .mScope=kAudioObjectPropertyScopeGlobal, .mElement=kAudioObjectPropertyElementMaster}), 0, NULL, &formats_size, formats), stream_status != noErr) {
-	       goto skip_stream_allocated_formats;
+	       continue;
 	  }
 
 	  MU_MACOS_TRACEF("got stream with formats: %d\n", formats_n);
 
 	  int matching_formats_l = mu_coreaudio_formats_partition(formats_n, formats, mu_audio_audioformat);
 	  if (matching_formats_l == 0) {
-	       goto skip_stream_allocated_formats;
+	       continue;
 	  }
 	  session->audio_channels_n = mu_audio_audioformat.channels;
 	  session->audio_channels[0] = left_right_channels[0];
@@ -430,12 +431,8 @@ mu_audio_output_start(struct Mu *mu, struct Mu_Session *session)
 
 	  selected_stream_i = stream_i;
 	  selected_format = formats[0];
-	  
-     skip_stream_allocated_formats:
-	  free(formats);
-     skip_stream:
-	  continue;
      }
+     free(formats);
 
      if (selected_stream_i == streams_n) {
 	  mu->error = mu->error_buffer;

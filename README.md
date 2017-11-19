@@ -4,9 +4,9 @@ Per Vognsen designed this API as an alternative to libraries like SDL,
 SML. I find myself agreeing with many of its design decisions.
 
 He documented it at:
-- @url{https://gist.github.com/pervognsen/6a67966c5dc4247a0021b95c8d0a7b72}
-- @url{https://www.youtube.com/watch?v=NG_mUhc8LRw}
-- @url{https://www.youtube.com/watch?v=pAIdfsT7-EU}
+- @url: https://gist.github.com/pervognsen/6a67966c5dc4247a0021b95c8d0a7b72 (code as of the stream 2)
+- @url: https://www.youtube.com/watch?v=NG_mUhc8LRw
+- @url: https://www.youtube.com/watch?v=pAIdfsT7-EU
 
 His goals:
 - minimal platform layer for multimedia apps (in terms of binary/source size)

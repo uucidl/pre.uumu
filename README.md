@@ -1,6 +1,6 @@
 Implementing Per Vognsen's Mu API
 
-Per Vognsen designed this API as an alternative to libraries like SDL,
+Per Vognsen designed the [Mu API](xxxx_mu.h) as an alternative to libraries like SDL,
 SML. I find myself agreeing with many of its design decisions.
 
 He documented it at:

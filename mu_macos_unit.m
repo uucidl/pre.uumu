@@ -371,7 +371,7 @@ mu_coreaudio_callback(
      for (int c_i = 0; c_i < 2; ++c_i) {
 	  for (int frame_i = 0; frame_i < frame_n; ++frame_i) {
 	       struct Output const output = outputs[c_i];
-	       output.dest[frame_i * output.frame_stride] = (float) client_buffer[2*frame_i + c_i]/65536.f;
+	       output.dest[frame_i * output.frame_stride] = (float) client_buffer[2*frame_i + c_i]/32768.f;
 	  }
      }
      return noErr;

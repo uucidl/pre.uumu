@@ -92,8 +92,8 @@ void main_audio_callback(struct Mu_AudioBuffer *audiobuffer)
 	  for (int frame_i = 0; frame_i < frames_n; ++frame_i) {
 	       double const env = fmin(1.0, exp(-6.0 * phase * 0.001));
 	       float const y = (float) (env * amp * sin(TAU*phase));
-	       stereo_frames[2*frame_i] += 65535.0f*y;
-	       stereo_frames[2*frame_i + 1] += 65535.0f*y;
+	       stereo_frames[2*frame_i] += 32767.0f*y;
+	       stereo_frames[2*frame_i + 1] += 32767.0f*y;
 	       phase += phase_delta;
 	       note_has_ended = env < 0.01;
 	  }

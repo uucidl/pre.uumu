@@ -54,7 +54,8 @@ Some other personal comments:
 
 A push API for audio is certainly possible, however I personally think
 if it make sense, it should prevent gaps in audio as the result of a
-late frame.
+late frame. It does simplify the usual, simple cases because it
+removes the need for thread-safe code.
 
 Another comment I can make is that the choice of int16_t for audio
 samples, while convenient for mixing in samples coming from audio
@@ -65,4 +66,9 @@ representation of audio samples.
 - The win32 implementation deals with recursive main loops using
 Windows coroutine/fiber API. On Macos, there are examples of people
 doing the same: @url{https://github.com/tomaka/winit/issues/219}
+
+@todo @idea in the same spirit of the redundant converted time values
+found in the main part of the api, it would be logical to precompute
+the number of frames of interleaved samples and put it in the
+audiobuffer structure
 

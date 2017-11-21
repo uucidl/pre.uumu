@@ -87,14 +87,14 @@ struct Mu_Window {
 };
 
 struct Mu_AudioFormat {
-    uint32_t samples_per_second;
+    uint32_t samples_per_second; // number of "frames" of n=channels samples per second
     uint32_t channels;
-    uint32_t bytes_per_sample; // TODO(nicolas): is it the total number of bytes per sample, across all channels?
+    uint32_t bytes_per_sample;
 };
 
 struct Mu_AudioBuffer {
     int16_t *samples;
-    size_t samples_count; // TODO(nicolas): is it the total number of samples, across all channels or not? (inconsistent with samples_per_seconds)
+    size_t samples_count; // total number of samples in the interleaved buffer, with n=channels samples per frame
     struct Mu_AudioFormat format;
 };
 

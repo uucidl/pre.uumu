@@ -251,7 +251,7 @@ struct Mu_AudioFormat const mu_audio_audioformat = { 48000, 2, sizeof (int16_t) 
 MU_MACOS_INTERNAL
 void mu_audio_emit_silence(struct Mu_AudioBuffer* buffer)
 {
-     memset(buffer->samples, 0, buffer->samples_count * buffer->format.channels * buffer->format.bytes_per_sample);
+     memset(buffer->samples, 0, buffer->samples_count * buffer->format.bytes_per_sample);
 }
 
 // partition the formats array into good formats (first) and bad formats (last) and return the size of the good format partition (partition point)
@@ -382,7 +382,7 @@ mu_coreaudio_callback(
 #endif
      struct Mu_AudioBuffer audiobuffer = {
 	  .samples = client_buffer,
-	  .samples_count = frame_n,
+	  .samples_count = frame_n * audioformat.channels,
 	  .format = audioformat
      };
      session->audio.callback(&audiobuffer);

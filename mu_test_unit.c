@@ -65,6 +65,7 @@ void main_audio_callback(struct Mu_AudioBuffer *audiobuffer)
      int16_t * const stereo_frames = audiobuffer->samples;
      int const frames_n = audiobuffer->samples_count;
      double const sr_hz = audiobuffer->format.samples_per_second;
+     memset(stereo_frames, 0, frames_n*audiobuffer->format.channels*audiobuffer->format.bytes_per_sample);
 
      struct Mu_Test_AudioSynth * const synth = &mu_test_audiosynth;
      

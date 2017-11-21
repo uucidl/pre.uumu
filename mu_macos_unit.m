@@ -236,6 +236,11 @@ struct Mu_Session
      AudioDeviceIOProcID IOProcID;
      int audio_channels_n;
      int audio_channels[MU_MAX_AUDIO_CHANNELS];
+#if !defined(NDEBUG)
+     // @debug signal
+     double audio_debug_signal_phase;
+     double audio_debug_signal_phase_inc;
+#endif
 };
 
 // Mu Audio:
@@ -359,7 +364,22 @@ mu_coreaudio_callback(
      };
      int const frame_n = outputs[0].frame_n;
      int16_t client_buffer[audioformat.channels*frame_n];
-     memset(client_buffer, 0, sizeof client_buffer);
+#if !defined(NDEBUG)
+     // @debug default signal to let users know they should fill up the buffer
+     {
+          int const channels_n = audioformat.channels;
+          double phase = session->audio_debug_signal_phase;
+          double const phase_inc = session->audio_debug_signal_phase_inc;
+          for (int frame_i = 0; frame_i < frame_n; frame_i++, phase += phase_inc) {
+               double const y = 328*cos(6.2831853071795864769252*phase);
+               for (int channel_i = 0; channel_i < channels_n; ++channel_i) {
+                    client_buffer[channels_n*frame_i + channel_i] = y;
+               }
+          }
+          while (phase >= 1.0) phase -= 1.0;
+          session->audio_debug_signal_phase = phase;
+     }
+#endif
      struct Mu_AudioBuffer audiobuffer = {
 	  .samples = client_buffer,
 	  .samples_count = frame_n,
@@ -474,6 +494,9 @@ mu_audio_output_start(struct Mu *mu, struct Mu_Session *session)
      mu->audio.format.samples_per_second = selected_format.mFormat.mSampleRate;
      session->DeviceID = output_device;
      session->audio = mu->audio;
+#if !defined(NDEBUG)
+     session->audio_debug_signal_phase_inc = 1000.0 / mu->audio.format.samples_per_second;
+#endif
      
      if (status = AudioDeviceCreateIOProcID(output_device, mu_coreaudio_callback, session, &session->IOProcID), status != noErr) {
 	  mu->error = "could not create audio callback";
@@ -1292,6 +1315,11 @@ Mu_Bool Mu_Pull(struct Mu *mu)
 	  old_window.size.y != mu->window.size.y;
      
      [[session->opengl_view openGLContext] makeCurrentContext];
+#if !defined(NDEBUG)
+     // @debug debug background
+     glClearColor(1.0,105/255.0f,180/255.0f,0);
+     glClear(GL_COLOR_BUFFER_BIT);
+#endif
      return MU_TRUE;
 }
 

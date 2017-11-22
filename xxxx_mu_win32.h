@@ -8,7 +8,7 @@ enum {
      MU_CTRL = 0x11,  // VK_CONTROL
      MU_ALT = 0x12,   // VK_MENU
      MU_SHIFT = 0x10, // VK_SHIFT
-}
+};
 
 typedef void *HANDLE;
 typedef struct _XINPUT_STATE XINPUT_STATE;

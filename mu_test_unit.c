@@ -31,20 +31,21 @@ struct Mu_Test_AudioNote_InitParameters
 struct Mu_Test_AudioNote_Playing
 {
      struct Mu_Test_AudioNote_InitParameters init_parameters;
-     uint64_t origin_sample;
      double phase;
 };
 
 enum {
-     MU_TEST_AUDIOSYNTH_INPUT_NOTES_RINGBUFFER_POWER = 2,
-     MU_TEST_AUDIOSYNTH_PLAYING_NOTES_CAPACITY = 32,
+     MU_TEST_AUDIOSYNTH_INPUT_NOTES_RINGBUFFER_POWER = 3,
+    MU_TEST_AUDIOSYNTH_INPUT_NOTES_RINGBUFFER_COUNT = 1<<MU_TEST_AUDIOSYNTH_INPUT_NOTES_RINGBUFFER_POWER,
+    MU_TEST_AUDIOSYNTH_INPUT_NOTES_RINGBUFFER_MASK = (1<<MU_TEST_AUDIOSYNTH_INPUT_NOTES_RINGBUFFER_POWER) - 1,
+     MU_TEST_AUDIOSYNTH_PLAYING_NOTES_CAPACITY = 64,
 };
 
 struct Mu_Test_AudioSynth
 {
      atomic_uint input_notes_rb_write_n; // @shared
      atomic_uint input_notes_rb_read_n; // @shared
-     struct Mu_Test_AudioNote_InitParameters input_notes_rb[1 << MU_TEST_AUDIOSYNTH_INPUT_NOTES_RINGBUFFER_POWER]; // @shared
+     struct Mu_Test_AudioNote_InitParameters input_notes_rb[MU_TEST_AUDIOSYNTH_INPUT_NOTES_RINGBUFFER_COUNT]; // @shared
 
      int playing_notes_n;
      struct Mu_Test_AudioNote_Playing playing_notes[MU_TEST_AUDIOSYNTH_PLAYING_NOTES_CAPACITY];
@@ -72,14 +73,13 @@ void main_audio_callback(struct Mu_AudioBuffer *audiobuffer)
      unsigned int input_notes_n = atomic_load(&synth->input_notes_rb_write_n);
      unsigned int input_notes_read_n = atomic_load(&synth->input_notes_rb_read_n);
      for (unsigned int input_note_i = input_notes_read_n; input_note_i != input_notes_n; input_note_i++) {
-	  int next_note_i = synth->playing_notes_n;
-	  if (next_note_i != MU_TEST_AUDIOSYNTH_PLAYING_NOTES_CAPACITY) {
-	       synth->playing_notes_n++;
-	       synth->playing_notes[next_note_i] = (struct Mu_Test_AudioNote_Playing){
-		    { .pitch_hz = synth->input_notes_rb[input_note_i & MU_TEST_AUDIOSYNTH_INPUT_NOTES_RINGBUFFER_POWER].pitch_hz },
-	       };
-	       ++input_notes_read_n;
-	  }
+	      int next_note_i = synth->playing_notes_n;
+	      if (next_note_i != MU_TEST_AUDIOSYNTH_PLAYING_NOTES_CAPACITY) {
+              int note_i = input_note_i & MU_TEST_AUDIOSYNTH_INPUT_NOTES_RINGBUFFER_MASK;
+              synth->playing_notes_n++;
+              synth->playing_notes[next_note_i] = (struct Mu_Test_AudioNote_Playing){{.pitch_hz = synth->input_notes_rb[note_i].pitch_hz,},};
+              ++input_notes_read_n;
+	      }
      }
      atomic_store(&synth->input_notes_rb_read_n, input_notes_read_n);
      
@@ -101,7 +101,7 @@ void main_audio_callback(struct Mu_AudioBuffer *audiobuffer)
 	  note->phase = phase;
 	  if (note_has_ended) {
 	       synth->playing_notes_n--;
-	       if (synth->playing_notes_n > 0) {
+	       if (synth->playing_notes_n != note_i) {
 		    memcpy(note, &synth->playing_notes[synth->playing_notes_n], sizeof *note);
 	       }
 	  } else {
@@ -118,17 +118,19 @@ void mu_test_audiosynth_initialize(struct Mu_Test_AudioSynth * const synth)
 }
 
 MU_TEST_INTERNAL
-void mu_test_audiosynth_push_note(struct Mu_Test_AudioSynth * const synth, double const pitch_hz)
+bool mu_test_audiosynth_push_note(struct Mu_Test_AudioSynth * const synth, double const pitch_hz)
 {
-     int write_n = atomic_load(&synth->input_notes_rb_write_n);
-     int read_n = atomic_load(&synth->input_notes_rb_read_n);
-     if (write_n - read_n < (1<<MU_TEST_AUDIOSYNTH_INPUT_NOTES_RINGBUFFER_POWER)) {
-	  unsigned int input_note_i = (write_n & MU_TEST_AUDIOSYNTH_INPUT_NOTES_RINGBUFFER_POWER);
-	  synth->input_notes_rb[input_note_i] = (struct Mu_Test_AudioNote_InitParameters){
-	       .pitch_hz = pitch_hz,
-	  };
-	  atomic_store(&synth->input_notes_rb_write_n, write_n + 1);
-     }
+    unsigned int write_n = atomic_load(&synth->input_notes_rb_write_n);
+    unsigned int read_n = atomic_load(&synth->input_notes_rb_read_n);
+    if (write_n - read_n >=MU_TEST_AUDIOSYNTH_INPUT_NOTES_RINGBUFFER_COUNT) {
+        return false;
+    }
+    unsigned int input_note_i = (write_n & MU_TEST_AUDIOSYNTH_INPUT_NOTES_RINGBUFFER_MASK);
+    synth->input_notes_rb[input_note_i] = (struct Mu_Test_AudioNote_InitParameters){
+        .pitch_hz = pitch_hz,
+    };
+    atomic_store(&synth->input_notes_rb_write_n, write_n + 1);
+    return true;
 }
 
 int main(int argc, char **argv)

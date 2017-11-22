@@ -196,9 +196,11 @@ int main(int argc, char **argv)
 	       glEnd();
 	  }
 
-	  if (mu.keys[/* escape key on mac */ 0x35].pressed) {
-	       mu.quit = MU_TRUE;
-	  }
+      for(char *p = mu.text, * const p_l = mu.text + mu.text_length; p != p_l; ++p) {
+        if (*p == 033 /* escape */) {
+              mu.quit = MU_TRUE;
+        }
+      }
 
 	  if (mu.keys[/* F1 on mac */ 0x7A].pressed) {
 	       printf("received f1\n");

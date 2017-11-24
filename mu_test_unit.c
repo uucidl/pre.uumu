@@ -7,19 +7,49 @@
 
 #include "xxxx_mu.h"
 
+#if defined(__APPLE__)
 #include "xxxx_mu_cocoa.h" // @todo: @platform{macos} because I need the platform specific keyname
-
 #include "OpenGL/gl.h" // @todo: @platform{macos} specific location
-
-#if defined(__STDC_NO_ATOMICS__)
-#error "Error: C11 atomics not found"
 #endif
 
+#if defined(_WIN32)
+#include "xxxx_mu_win32.h"
+
+#if !defined(APIENTRY)
+#define APIENTRY __stdcall
+#endif
+#if !defined(WINGDIAPI)
+#define WINGDIAPI __declspec(dllimport)
+#endif
+#include <gl/GL.h>
+
+#undef APIENTRY
+#undef WINGDIAPI
+#endif
+
+#include <assert.h>
 #include <math.h>
-#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+
+#if defined(_WIN32)
+typedef uintptr_t atomic_uint;
+static inline uintptr_t atomic_load(uintptr_t volatile * object) {
+     return *object;
+}
+static inline void atomic_store(uintptr_t volatile * object, uintptr_t value) {
+    *object = value;
+    }
+static inline void atomic_init(uintptr_t volatile* object, uintptr_t value) {
+    atomic_store(object, value);
+}
+#else
+#if defined(__STDC_NO_ATOMICS__)
+#error "Error: C11 atomics not found"
+#endif
+#include <stdatomic.h>
+#endif
 
 #define MU_TEST_INTERNAL static
 #define MU_TEST_FN_STATE static
@@ -106,7 +136,7 @@ void main_audio_callback(struct Mu_AudioBuffer *audiobuffer)
      memset(stereo_frames, 0, frames_n*audiobuffer->format.channels*audiobuffer->format.bytes_per_sample);
 
      struct Mu_Test_AudioSynth * const synth = &mu_test_audiosynth;
-     
+
      unsigned int input_notes_n = atomic_load(&synth->input_notes_rb_write_n);
      unsigned int input_notes_read_n = atomic_load(&synth->input_notes_rb_read_n);
      for (unsigned int input_note_i = input_notes_read_n; input_note_i != input_notes_n; input_note_i++) {
@@ -121,7 +151,7 @@ void main_audio_callback(struct Mu_AudioBuffer *audiobuffer)
 	      }
      }
      atomic_store(&synth->input_notes_rb_read_n, input_notes_read_n);
-     
+
      static const double TAU = 6.2831853071795864769252;
      for (int note_i = 0; note_i < synth->playing_notes_n;) {
 	  struct Mu_Test_AudioNote_Playing * const note = &synth->playing_notes[note_i];
@@ -211,7 +241,14 @@ int main(int argc, char **argv)
 	  printf("ERROR: Mu could not initialize: '%s'\n", mu.error);
 	  return 1;
      }
-
+     GLuint defGL_MAJOR_VERSION = 0x821B;
+     GLuint defGL_MINOR_VERSION = 0x821C;
+     GLint gl_version[2] = {1, 0};
+     glGetIntegerv(defGL_MAJOR_VERSION, &gl_version[0]);
+     glGetIntegerv(defGL_MINOR_VERSION, &gl_version[1]);
+     if (gl_version[0] < 3) {
+         printf("ERROR: This test needs GL version >= 3, got %d.%d\n", gl_version[0], gl_version[1]);
+     }
      struct Mu_AudioBuffer test_audio;
      Mu_Bool test_audio_loaded = MU_FALSE;
      char const * test_sound_path = MU_TEST_ASSET("test_assets/chime.wav");
@@ -228,7 +265,7 @@ int main(int argc, char **argv)
      }
 
      struct Mu_Image test_image = {0,};
-     char const *test_image_path = "test_assets/ln2.png";
+     char const *test_image_path = MU_TEST_ASSET("test_assets/ln2.png");
      if (buffer_n != platform_get_resource_path(buffer, buffer_n, test_image_path, strlen(test_image_path))) {
        Mu_Bool test_image_loaded = Mu_LoadImage(buffer, &test_image);
        if(!test_image_loaded) printf("ERROR: Mu could not load file: '%s'\n", buffer);
@@ -254,7 +291,8 @@ int main(int argc, char **argv)
      uint64_t last_nanoseconds = mu.time.nanoseconds;
      uint8_t last_nanoseconds_wraparound_n = 0;
      while (Mu_Pull(&mu)) {
-          if (test_image_texture_id == 0) {
+         // some debugging GL2 style code
+         if (test_image_texture_id == 0) {
                glGenTextures(1, &test_image_texture_id);
                if (test_image.width * test_image.height && test_image.channels == 4) {
                     GLint target = defGL_TEXTURE_RECTANGLE;
@@ -275,7 +313,6 @@ int main(int argc, char **argv)
                glOrtho(0.0, mu.window.size.x, mu.window.size.y, 0, -1.0, 1.0);
                printf("ortho %d %d\n", mu.window.size.x, mu.window.size.y);
           }
-          // some debugging GL2 style code
           glClearColor(fabs(sin(theta)), fabs(sin(3*theta)), 0.6f, 0.0f);
           glClearColor(0.5f, 0.5f, 0.5f, 0.0f);
           glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -349,11 +386,23 @@ int main(int argc, char **argv)
             cy += 10;
           }
 
-      for(char *p = mu.text, * const p_l = mu.text + mu.text_length; p != p_l; ++p) {
-        if (*p == 033 /* escape */) {
-              mu.quit = MU_TRUE;
-        }
-      }
+          /* show time as a "playhead" */ {
+              int const ey = mu.window.size.y;
+              int pw = 3;
+              glColor3f(1.0f, 1.0f, 1.0f);
+              glBegin(GL_QUADS);
+              glVertex2f(px, ey);
+              glVertex2f(px+pw, ey);
+              glVertex2f(px+pw, 0.0f);
+              glVertex2f(px, 0.0f);
+              glEnd();
+          }
+
+          for(char *p = mu.text, * const p_l = mu.text + mu.text_length; p != p_l; ++p) {
+              if (*p == 033 /* escape */) {
+                  mu.quit = MU_TRUE;
+              }
+          }
 
           if (mu.keys[/* F1 on mac */ 0x7A].pressed) {
                printf("received f1\n");
@@ -499,19 +548,8 @@ int main(int argc, char **argv)
           }
 
           if (mu.gamepad.a_button.pressed) {
-               printf("A button was pressed\n");
+              printf("A button was pressed\n");
           }
-
-          int const ey = mu.window.size.y;
-          int pw = 3;
-
-          glColor3f(1.0f, 1.0f, 1.0f);
-          glBegin(GL_QUADS);
-          glVertex2f(px, ey);
-          glVertex2f(px+pw, ey);
-          glVertex2f(px+pw, 0.0f);
-          glVertex2f(px, 0.0f);
-          glEnd();
 
           Mu_Push(&mu);
           ++frame_i;
@@ -520,6 +558,24 @@ int main(int argc, char **argv)
      return 0;
 }
 
+#if defined(__APPLE__)
 #include "mu_test_macos.c"
+#elif defined(_WIN32)
+#include "mu_test_win32.c"
+#endif
 
 #undef MU_TEST_INTERNAL
+
+#if defined(_WIN32) && defined(_MSC_VER)
+// needed by pervognsen_mu
+#pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "opengl32.lib")
+#pragma comment(lib, "user32.lib")
+#pragma comment(lib, "Ole32.lib")
+#pragma comment(lib, "mf.lib")
+#pragma comment(lib, "mfplay.lib")
+#pragma comment(lib, "Mfplat.lib")
+#pragma comment(lib, "Mfreadwrite.lib")
+#pragma comment(lib, "mfuuid.lib")
+#pragma comment(lib, "Windowscodecs.lib")
+#endif

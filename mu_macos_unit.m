@@ -4,7 +4,7 @@
 // @language: c11
 // @language: objective-c
 // @platform: macos
-// @framework_list: AppKit, CoreAudio, IOKit, OpenGL
+// @framework_list: AppKit, AudioToolbox, CoreAudio, IOKit, OpenGL
 
 // Integration:
 // ------------
@@ -1336,8 +1336,93 @@ Mu_Bool Mu_LoadImage(const char *filename, struct Mu_Image *image)
      return MU_FALSE;
 }
 
+#include <AudioToolbox/ExtendedAudioFile.h>
+
 Mu_Bool Mu_LoadAudio(const char *filename, struct Mu_AudioBuffer *audio)
 {
+     ExtAudioFileRef audiofile;
+     /* open audio file */ {
+          CFURLRef file_url = CFURLCreateWithBytes(kCFAllocatorDefault, (UInt8 const*)filename, strlen(filename), kCFStringEncodingUTF8, NULL);
+          OSStatus st = ExtAudioFileOpenURL(file_url, &audiofile);
+          CFRelease(file_url), file_url = NULL;
+          if (st != noErr) return MU_FALSE;
+     }
+     struct Mu_AudioFormat format = {0};
+     /* fetch current format */ {
+          AudioStreamBasicDescription desc = {0};
+          for (UInt32 size = sizeof desc; ExtAudioFileGetProperty(audiofile, kExtAudioFileProperty_FileDataFormat, &size, &desc) != noErr; ) {
+               MU_MACOS_TRACEF("ERROR: could not get desc\n");
+               goto error_with_audiofile_open;
+          }
+          format = (struct Mu_AudioFormat){
+               .samples_per_second = desc.mSampleRate,
+               .channels = desc.mChannelsPerFrame,
+               .bytes_per_sample = desc.mBitsPerChannel/8,
+          };
+     }
+     /* set conversion to PCM Float samples */ {
+          AudioStreamBasicDescription desc = (struct AudioStreamBasicDescription) {
+               .mSampleRate = format.samples_per_second,
+               .mFormatID = kAudioFormatLinearPCM,
+               .mFormatFlags = kAudioFormatFlagsNativeFloatPacked,
+               .mBitsPerChannel = 8*sizeof(float),
+               .mChannelsPerFrame = format.channels,
+               .mFramesPerPacket = 1,
+          };
+          desc.mBytesPerFrame = desc.mChannelsPerFrame * sizeof(float);
+          desc.mBytesPerPacket = desc.mBytesPerFrame;
+          OSStatus st;
+          if (st = ExtAudioFileSetProperty(audiofile, kExtAudioFileProperty_ClientDataFormat, sizeof desc, &desc), st != noErr) {
+               MU_MACOS_TRACEF("ERROR: could not set format: got %x\n", st);
+               goto error_with_audiofile_open;
+          }
+          format = (struct Mu_AudioFormat) {
+               .samples_per_second = desc.mSampleRate,
+               .channels = desc.mChannelsPerFrame,
+               .bytes_per_sample = desc.mBitsPerChannel/8,
+          };
+     }
+     int dest_buffer_capacity = 4096;
+     int dest_buffer_n = 0;
+     int16_t *dest_buffer = (int16_t*)malloc(dest_buffer_capacity * sizeof *dest_buffer);
+     /* read all and convert */ {
+          int in_buffer_capacity = 4096;
+          char* in_buffer = malloc(in_buffer_capacity);
+          int const in_buffer_frames_n = in_buffer_capacity / format.channels / format.bytes_per_sample;
+          AudioBufferList io_audiobufferlist = { 1, { (AudioBuffer){ .mData=in_buffer, .mDataByteSize=in_buffer_capacity, .mNumberChannels=format.channels } } };
+          UInt32 frames_n = 0;
+          OSStatus st;
+          while ((frames_n = in_buffer_frames_n), (st = ExtAudioFileRead(audiofile, &frames_n, &io_audiobufferlist)), (st == noErr && frames_n != 0)) {
+               int read_samples_n = frames_n * format.channels;
+               while (dest_buffer_n + read_samples_n >= dest_buffer_capacity) dest_buffer_capacity *= 2;
+               dest_buffer = realloc(dest_buffer, dest_buffer_capacity * (sizeof *dest_buffer));
+               float *s_sample = (float*)io_audiobufferlist.mBuffers[0].mData;
+               int16_t *d_sample = dest_buffer + dest_buffer_n;
+               for (int frame_i = 0; frame_i < frames_n; ++frame_i) {
+                    for (int channel_i = 0; channel_i < format.channels; ++channel_i) {
+                         *d_sample = 32767*(*s_sample);
+                         ++d_sample;
+                         ++s_sample;
+                    }
+               }
+               dest_buffer_n += read_samples_n;
+          }
+          free(in_buffer), in_buffer = NULL, in_buffer_capacity = 0;
+          ExtAudioFileDispose(audiofile);
+          if (st != noErr && st != kAudioFileEndOfFileError) goto error;
+     }
+     audio->samples = realloc(dest_buffer, dest_buffer_n * (sizeof *dest_buffer));
+     audio->samples_count = dest_buffer_n;
+     audio->format = (struct Mu_AudioFormat){
+          .samples_per_second = format.samples_per_second,
+          .channels = format.channels,
+          .bytes_per_sample = (sizeof *dest_buffer),
+     };
+     return MU_TRUE;
+
+error_with_audiofile_open:
+     ExtAudioFileDispose(audiofile);
+error:
      return MU_FALSE;
 }
 

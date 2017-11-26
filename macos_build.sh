@@ -20,16 +20,24 @@ ODIR="${ODIR:-"${HERE}"/output}"
 	    -framework IOKit \
 	    -framework AppKit \
 	    -framework CoreAudio \
+            -framework AudioToolbox \
 	    -g -O2 \
 	    -std=c11 \
     && printf "PROGRAM\t%s\n" "${O}") || exit 1
 
+(O="${ODIR}"/test_assets/chime.aif I="${HERE}"/test_assets/chime.aif
+ OD="$(dirname "${O}")"
+ [ -d "${OD}" ] || mkdir -p "${OD}"
+ cp "${I}" "${O}")
+
 # Bundle app:
-(O="${ODIR}"/mutest.app O_ELFNAME="mu_test.elf" I_ELF="${ODIR}/mu_test.elf" I_PLIST="${HERE}/mu_test-macos-Info.plist"
+(O="${ODIR}"/mutest.app O_ELFNAME="mu_test.elf" I_ELF="${ODIR}/mu_test.elf" I_PLIST="${HERE}/mu_test-macos-Info.plist" R_DIR="${ODIR}"/test_assets
  [ -f "${I_ELF}" ] &&
  [ -f "${I_PLIST}" ] &&
  rm -rf "${O}"  &&
  mkdir -p "${O}"/Contents/MacOS &&
  cp "${I_PLIST}" "${O}"/Contents/Info.plist &&
  cp "${I_ELF}" "${O}"/Contents/MacOS/"${O_ELFNAME}" &&
+ mkdir -p "${O}"/Contents/Resources &&
+ cp -R "${R_DIR}" "${O}"/Contents/Resources &&
  printf "MACOS_APP\t%s\n" "${O}") || exit 1

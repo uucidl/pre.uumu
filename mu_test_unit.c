@@ -26,12 +26,14 @@
 struct Mu_Test_AudioNote_InitParameters
 {
      float pitch_hz;
+     struct Mu_AudioBuffer *optional_source;
 };
 
 struct Mu_Test_AudioNote_Playing
 {
      struct Mu_Test_AudioNote_InitParameters init_parameters;
      double phase;
+     int source_frame_i;
 };
 
 enum {
@@ -61,6 +63,38 @@ double db_to_amp (double volume_in_db)
 }
 
 MU_TEST_INTERNAL
+int audio_mix(struct Mu_AudioBuffer const * source, struct Mu_AudioBuffer *dest, double amp, int s_frame_i)
+{
+     int16_t* const s_sample_f = source->samples;
+     int16_t* const s_sample_l = s_sample_f + source->samples_count;
+     int16_t* s_sample = s_sample_f + s_frame_i;
+     int16_t* const d_sample_f = dest->samples;
+     int16_t* const d_sample_l = dest->samples + dest->samples_count;
+     int16_t* d_sample = d_sample_f;
+     if (source->format.channels == 1) {
+          while (d_sample != d_sample_l && s_sample != s_sample_l) {
+               int16_t x = amp * (*s_sample);
+               for(int n = dest->format.channels; n--;) {
+                    *d_sample++ += x;
+               }
+               ++s_sample;
+          }
+     } else {
+          while (d_sample != d_sample_l && s_sample != s_sample_l) {
+               int s_channels = source->format.channels;
+               int d_channels = dest->format.channels;
+               int channels_n = d_channels < s_channels ? d_channels:s_channels;
+               for (int channel_i=0; channel_i < channels_n; ++channel_i) {
+                    d_sample[channel_i] += amp*s_sample[channel_i];
+               }
+               d_sample += d_channels;
+               s_sample += s_channels;
+          }
+     }
+     return s_sample - s_sample_f;
+}
+
+MU_TEST_INTERNAL
 void main_audio_callback(struct Mu_AudioBuffer *audiobuffer)
 {
      int16_t * const stereo_frames = audiobuffer->samples;
@@ -75,10 +109,12 @@ void main_audio_callback(struct Mu_AudioBuffer *audiobuffer)
      for (unsigned int input_note_i = input_notes_read_n; input_note_i != input_notes_n; input_note_i++) {
 	      int next_note_i = synth->playing_notes_n;
 	      if (next_note_i != MU_TEST_AUDIOSYNTH_PLAYING_NOTES_CAPACITY) {
-              int note_i = input_note_i & MU_TEST_AUDIOSYNTH_INPUT_NOTES_RINGBUFFER_MASK;
-              synth->playing_notes_n++;
-              synth->playing_notes[next_note_i] = (struct Mu_Test_AudioNote_Playing){{.pitch_hz = synth->input_notes_rb[note_i].pitch_hz,},};
-              ++input_notes_read_n;
+                   int note_i = input_note_i & MU_TEST_AUDIOSYNTH_INPUT_NOTES_RINGBUFFER_MASK;
+                   synth->playing_notes_n++;
+                   synth->playing_notes[next_note_i] = (struct Mu_Test_AudioNote_Playing){
+                        .init_parameters = synth->input_notes_rb[note_i],
+                   };
+                   ++input_notes_read_n;
 	      }
      }
      atomic_store(&synth->input_notes_rb_read_n, input_notes_read_n);
@@ -98,6 +134,10 @@ void main_audio_callback(struct Mu_AudioBuffer *audiobuffer)
 	       phase += phase_delta;
 	       note_has_ended = env < 0.01;
 	  }
+          struct Mu_AudioBuffer *source = note->init_parameters.optional_source;
+          if (source) {
+               note->source_frame_i = audio_mix(source, audiobuffer, amp, note->source_frame_i);
+          }
 	  note->phase = phase;
 	  if (note_has_ended) {
 	       synth->playing_notes_n--;
@@ -118,7 +158,7 @@ void mu_test_audiosynth_initialize(struct Mu_Test_AudioSynth * const synth)
 }
 
 MU_TEST_INTERNAL
-bool mu_test_audiosynth_push_note(struct Mu_Test_AudioSynth * const synth, double const pitch_hz)
+bool mu_test_audiosynth_push_event(struct Mu_Test_AudioSynth * const synth, double const pitch_hz, struct Mu_AudioBuffer *optional_source)
 {
     unsigned int write_n = atomic_load(&synth->input_notes_rb_write_n);
     unsigned int read_n = atomic_load(&synth->input_notes_rb_read_n);
@@ -128,10 +168,28 @@ bool mu_test_audiosynth_push_note(struct Mu_Test_AudioSynth * const synth, doubl
     unsigned int input_note_i = (write_n & MU_TEST_AUDIOSYNTH_INPUT_NOTES_RINGBUFFER_MASK);
     synth->input_notes_rb[input_note_i] = (struct Mu_Test_AudioNote_InitParameters){
         .pitch_hz = pitch_hz,
+        .optional_source = optional_source,
     };
     atomic_store(&synth->input_notes_rb_write_n, write_n + 1);
     return true;
 }
+
+MU_TEST_INTERNAL
+bool mu_test_audiosynth_push_note(struct Mu_Test_AudioSynth * const synth, double const pitch_hz)
+{
+     mu_test_audiosynth_push_event(synth, pitch_hz, NULL);
+     return true;
+}
+
+MU_TEST_INTERNAL
+bool mu_test_audiosynth_push_sample(struct Mu_Test_AudioSynth * const synth, struct Mu_AudioBuffer *source)
+{
+     mu_test_audiosynth_push_event(synth, 0.0, source);
+     return true;
+}
+
+MU_TEST_INTERNAL
+int platform_get_resource_path(char* buffer, int buffer_n, char const * const relative_path, int relative_path_n);
 
 int main(int argc, char **argv)
 {
@@ -148,6 +206,22 @@ int main(int argc, char **argv)
 	  printf("ERROR: Mu could not initialize: '%s'\n", mu.error);
 	  return 1;
      }
+
+     struct Mu_AudioBuffer test_audio;
+     Mu_Bool test_audio_loaded = MU_FALSE;
+     char const * test_sound_path = "test_assets/chime.aif";
+     char buffer[4096];
+     int const buffer_n = sizeof buffer;
+     if (buffer_n != platform_get_resource_path(buffer, buffer_n, test_sound_path, strlen(test_sound_path))) {
+          test_audio_loaded = Mu_LoadAudio(buffer, &test_audio);
+          if (!test_audio_loaded) printf("ERROR: Mu could not load file: '%s'\n", buffer);
+     }
+     if (!test_audio_loaded) test_audio_loaded = Mu_LoadAudio(test_sound_path, &test_audio);
+     if (!test_audio_loaded) {
+          printf("ERROR: Mu could not load file: '%s'\n", test_sound_path);
+          return 1;
+     }
+
      glClearColor(0.5f, 0.5f, 0.5f, 0.0f);
      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -273,6 +347,9 @@ int main(int argc, char **argv)
 	  if (mu.mouse.left_button.pressed) {
 	       mu_test_audiosynth_push_note(&mu_test_audiosynth, 432.0 * pow(2.0, mu.mouse.position.x/240.0));
 	  }
+          if (mu.mouse.right_button.pressed) {
+               mu_test_audiosynth_push_sample(&mu_test_audiosynth, &test_audio);
+          }
 
 	  if (mu.gamepad.a_button.pressed) {
 	       printf("A button was pressed\n");
@@ -295,4 +372,7 @@ int main(int argc, char **argv)
      }
      return 0;
 }
+
+#include "mu_test_macos.c"
+
 #undef MU_TEST_INTERNAL

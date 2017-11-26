@@ -1,0 +1,5 @@
+*.cpp text
+*.mm text
+*.m text
+*.c text
+*.aif binary

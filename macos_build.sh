@@ -20,7 +20,9 @@ ODIR="${ODIR:-"${HERE}"/output}"
 	    -framework IOKit \
 	    -framework AppKit \
 	    -framework CoreAudio \
+            -framework AudioToolbox \
 	    -g -O2 \
+            -fsanitize=address \
 	    -std=c11 \
     && printf "PROGRAM\t%s\n" "${O}") || exit 1
 

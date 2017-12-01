@@ -226,12 +226,31 @@ int main(int argc, char **argv)
           return 1;
      }
 
-     glClearColor(0.5f, 0.5f, 0.5f, 0.0f);
-     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+     struct Mu_Image test_image = {0,};
+     char const *test_image_path = "test_assets/ln2.png";
+     if (buffer_n != platform_get_resource_path(buffer, buffer_n, test_image_path, strlen(test_image_path))) {
+       Mu_Bool test_image_loaded = Mu_LoadImage(buffer, &test_image);
+       if(!test_image_loaded) printf("ERROR: Mu could not load file: '%s'\n", buffer);
+     }
 
      float theta = 0.0f;
      int frame_i = 0;
+     GLuint test_image_texture_id = 0;
+     GLuint const defGL_TEXTURE_RECTANGLE = 0x84F5;
+
      while (Mu_Pull(&mu)) {
+          if (test_image_texture_id == 0) {
+               glGenTextures(1, &test_image_texture_id);
+               if (test_image.width * test_image.height && test_image.channels == 4) {
+                    GLint target = defGL_TEXTURE_RECTANGLE;
+                    glBindTexture(target, test_image_texture_id);
+                    glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                    glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                    glTexImage2D(target, 0, GL_RGBA, test_image.width, test_image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, test_image.pixels);
+                    glBindTexture(target, 0);
+               }
+          }
+
           if (frame_i == 0 || mu.window.resized) {
                glViewport(0, 0, mu.window.size.x, mu.window.size.y);
                glMatrixMode(GL_MODELVIEW);
@@ -241,38 +260,58 @@ int main(int argc, char **argv)
                glOrtho(0.0, mu.window.size.x, mu.window.size.y, 0, -1.0, 1.0);
                printf("ortho %d %d\n", mu.window.size.x, mu.window.size.y);
           }
-	  // some debugging GL2 style code
-	  glClearColor(fabs(sin(theta)), fabs(sin(3*theta)), 0.6f, 0.0f);
-	  glClearColor(0.5f, 0.5f, 0.5f, 0.0f);
-	  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	  int px = ((int)rint(mu.time.seconds / 3.0 * 640)) % mu.window.size.x;
+          // some debugging GL2 style code
+          glClearColor(fabs(sin(theta)), fabs(sin(3*theta)), 0.6f, 0.0f);
+          glClearColor(0.5f, 0.5f, 0.5f, 0.0f);
+          glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+          int px = ((int)rint(mu.time.seconds / 3.0 * 640)) % mu.window.size.x;
+          int cy = 10;
 
-	  /* dropped frame indicator */ {
-	       if (frame_i & 1) {
-		    glColor3f(1.0f, 0.0f, 0.0f);
-	       } else {
-		    glColor3f(0.0f, 1.0f, 1.0f);
-	       }
-	       glBegin(GL_QUADS);
-	       glVertex2f(10, 10);
-	       glVertex2f(10+100, 10);
-	       glVertex2f(10+100, 10+100);
-	       glVertex2f(10, 10+100);
-	       glEnd();
-	  }
+          /* dropped frame indicator */ {
+               if (frame_i & 1) {
+                    glColor3f(1.0f, 0.0f, 0.0f);
+               } else {
+                    glColor3f(0.0f, 1.0f, 1.0f);
+               }
+               glBegin(GL_QUADS);
+               glVertex2f(10, cy);
+               glVertex2f(10+100, cy);
+               glVertex2f(10+100, cy+100);
+               glVertex2f(10, cy+100);
+               glEnd();
+          }
+          cy += 100;
 
-	  /* frame time */ {
-	       glColor3f(1.0f, 0.0f, 0.0f);
-	       int y = 100 + 10;
-	       int h = mu.window.size.y - y;
-	       int fty = (int)(h * (mu.time.delta_milliseconds * 60 / 2) / 1000.0);
-	       glBegin(GL_QUADS);
-	       glVertex2f(10, 120);
-	       glVertex2f(10 + 20, 120);
-	       glVertex2f(10 + 20, 120 + fty);
-	       glVertex2f(10, 120 + fty);
-	       glEnd();
-	  }
+          /* logo */ {
+            cy += 10;
+            glBindTexture(defGL_TEXTURE_RECTANGLE, test_image_texture_id);
+            glEnable(defGL_TEXTURE_RECTANGLE);
+            glColor3f(1.0f, 1.0f, 1.0f);
+            int w = test_image.width;
+            int h = test_image.height;
+            glBegin(GL_QUADS);
+            glTexCoord2i(0, 0);                                 glVertex2f(10, cy);
+            glTexCoord2i(test_image.width, 0);                  glVertex2f(10+w, cy);
+            glTexCoord2i(test_image.width, test_image.height);  glVertex2f(10+w, cy+h);
+            glTexCoord2i(0, test_image.height);                 glVertex2f(10, cy+h);
+            glDisable(defGL_TEXTURE_RECTANGLE);
+            cy += h;
+          }
+
+          /* frame time */ {
+            cy += 10;
+            glColor3f(1.0f, 0.0f, 0.0f);
+            int y = cy;
+            int h = mu.window.size.y - y;
+            int fty = (int)(h * (mu.time.delta_milliseconds * 60 / 2) / 1000.0);
+            glBegin(GL_QUADS);
+            glVertex2f(10, cy);
+            glVertex2f(10 + 20, cy);
+            glVertex2f(10 + 20, cy + fty);
+            glVertex2f(10, cy + fty);
+            glEnd();
+            cy += 10;
+          }
 
       for(char *p = mu.text, * const p_l = mu.text + mu.text_length; p != p_l; ++p) {
         if (*p == 033 /* escape */) {
@@ -280,99 +319,99 @@ int main(int argc, char **argv)
         }
       }
 
-	  if (mu.keys[/* F1 on mac */ 0x7A].pressed) {
-	       printf("received f1\n");
-	  }
-	  if (mu.keys[MU_SHIFT].pressed) {
-	       printf("received shift\n");
-	  }
+          if (mu.keys[/* F1 on mac */ 0x7A].pressed) {
+               printf("received f1\n");
+          }
+          if (mu.keys[MU_SHIFT].pressed) {
+               printf("received shift\n");
+          }
 
-	  if (mu.text_length > 0) {
-	       printf("received text: %*s\n", (int)mu.text_length, mu.text);
-	  }
-	       
-	  if (mu.mouse.delta_wheel != 0) {
-	       printf("wheel event: %d\n", mu.mouse.wheel);
-	  }
-	  if (mu.gamepad.connected) {
-	       /* show stick state */
-	       int cx = 210;
-	       int cy = 110;
-	       struct {
-		    struct Mu_Stick stick;
-		    struct Mu_AnalogButton growth;
-	       } sticks[] = {
-		    { mu.gamepad.left_thumb_stick, mu.gamepad.left_trigger },
-		    { mu.gamepad.right_thumb_stick, mu.gamepad.right_trigger }
-	       };
-	       int const sticks_n = sizeof sticks / sizeof *sticks;
-	       for (int stick_i = 0; stick_i < sticks_n; ++stick_i) {
-		    int bw = 50;
-		    int bx = cx;
-		    int by = cy;
-		    glColor3f(0.94f, 0.94f, 0.94f);
-		    glBegin(GL_QUADS);
-		    glVertex2f(bx, by-bw);
-		    glVertex2f(bx+bw, by-bw);
-		    glVertex2f(bx+bw, by);
-		    glVertex2f(bx, by);
-		    glEnd();
-		    
-		    float const x = sticks[stick_i].stick.x;
-		    float const y = sticks[stick_i].stick.y;
-		    int pw = 4 + (bw-4)*sticks[stick_i].growth.value;
-		    int px = bx + bw/2 + bw/2*x - pw/2;
-		    int py = by - bw + bw/2 + (-bw/2*y) + pw/2;
-		    
-		    glColor3f(0.04f, 0.04f, 0.04f);
-		    glBegin(GL_QUADS);
-		    glVertex2f(px, py-pw);
-		    glVertex2f(px+pw, py-pw);
-		    glVertex2f(px+pw, py);
-		    glVertex2f(px, py);
-		    glEnd();
+          if (mu.text_length > 0) {
+               printf("received text: %*s\n", (int)mu.text_length, mu.text);
+          }
 
-		    cx += bw + 10;
-	       }
-	  }
+          if (mu.mouse.delta_wheel != 0) {
+               printf("wheel event: %d\n", mu.mouse.wheel);
+          }
+          if (mu.gamepad.connected) {
+               /* show stick state */
+               int cx = 210;
+               int cy = 110;
+               struct {
+                    struct Mu_Stick stick;
+                    struct Mu_AnalogButton growth;
+               } sticks[] = {
+                    { mu.gamepad.left_thumb_stick, mu.gamepad.left_trigger },
+                    { mu.gamepad.right_thumb_stick, mu.gamepad.right_trigger }
+               };
+               int const sticks_n = sizeof sticks / sizeof *sticks;
+               for (int stick_i = 0; stick_i < sticks_n; ++stick_i) {
+                    int bw = 50;
+                    int bx = cx;
+                    int by = cy;
+                    glColor3f(0.94f, 0.94f, 0.94f);
+                    glBegin(GL_QUADS);
+                    glVertex2f(bx, by-bw);
+                    glVertex2f(bx+bw, by-bw);
+                    glVertex2f(bx+bw, by);
+                    glVertex2f(bx, by);
+                    glEnd();
 
-	  /* show mouse position */ {
-	       struct Mu_Int2 mp = mu.mouse.position;
-	       int b = mu.mouse.left_button.down? 8:4;
-	       glColor3f(0.5f, 0.7f, 0.2f);
-	       glBegin(GL_QUADS);
-	       glVertex2f(mp.x-b, mp.y-b);
-	       glVertex2f(mp.x+b, mp.y-b);
-	       glVertex2f(mp.x+b, mp.y+b);
-	       glVertex2f(mp.x-b, mp.y+b);
-	       glEnd();
-	  }
+                    float const x = sticks[stick_i].stick.x;
+                    float const y = sticks[stick_i].stick.y;
+                    int pw = 4 + (bw-4)*sticks[stick_i].growth.value;
+                    int px = bx + bw/2 + bw/2*x - pw/2;
+                    int py = by - bw + bw/2 + (-bw/2*y) + pw/2;
 
-	  if (mu.mouse.left_button.pressed) {
-	       mu_test_audiosynth_push_note(&mu_test_audiosynth, 432.0 * pow(2.0, mu.mouse.position.x/240.0));
-	  }
+                    glColor3f(0.04f, 0.04f, 0.04f);
+                    glBegin(GL_QUADS);
+                    glVertex2f(px, py-pw);
+                    glVertex2f(px+pw, py-pw);
+                    glVertex2f(px+pw, py);
+                    glVertex2f(px, py);
+                    glEnd();
+
+                    cx += bw + 10;
+               }
+          }
+
+          /* show mouse position */ {
+               struct Mu_Int2 mp = mu.mouse.position;
+               int b = mu.mouse.left_button.down? 8:4;
+               glColor3f(0.5f, 0.7f, 0.2f);
+               glBegin(GL_QUADS);
+               glVertex2f(mp.x-b, mp.y-b);
+               glVertex2f(mp.x+b, mp.y-b);
+               glVertex2f(mp.x+b, mp.y+b);
+               glVertex2f(mp.x-b, mp.y+b);
+               glEnd();
+          }
+
+          if (mu.mouse.left_button.pressed) {
+               mu_test_audiosynth_push_note(&mu_test_audiosynth, 432.0 * pow(2.0, mu.mouse.position.x/240.0));
+          }
           if (mu.mouse.right_button.pressed) {
                mu_test_audiosynth_push_sample(&mu_test_audiosynth, &test_audio);
           }
 
-	  if (mu.gamepad.a_button.pressed) {
-	       printf("A button was pressed\n");
-	  }
+          if (mu.gamepad.a_button.pressed) {
+               printf("A button was pressed\n");
+          }
 
-	  int const ey = mu.window.size.y;
-	  int pw = 3;
-	       
-	  glColor3f(1.0f, 1.0f, 1.0f);
-	  glBegin(GL_QUADS);
-	  glVertex2f(px, ey);
-	  glVertex2f(px+pw, ey);
-	  glVertex2f(px+pw, 0.0f);
-	  glVertex2f(px, 0.0f);
-	  glEnd();
+          int const ey = mu.window.size.y;
+          int pw = 3;
 
-	  Mu_Push(&mu);
-	  ++frame_i;
-	  theta += 0.01f;
+          glColor3f(1.0f, 1.0f, 1.0f);
+          glBegin(GL_QUADS);
+          glVertex2f(px, ey);
+          glVertex2f(px+pw, ey);
+          glVertex2f(px+pw, 0.0f);
+          glVertex2f(px, 0.0f);
+          glEnd();
+
+          Mu_Push(&mu);
+          ++frame_i;
+          theta += 0.01f;
      }
      return 0;
 }

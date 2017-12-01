@@ -59,6 +59,7 @@
 #include <CoreAudio/AudioHardware.h>
 #include <CoreAudio/CoreAudioTypes.h>
 #include <IOKit/hid/IOHIDLib.h>
+#include <ImageIO/ImageIO.h>
 #include <OpenGL/gl.h>
 
 #include <mach/mach_time.h>
@@ -1325,15 +1326,40 @@ Mu_Bool Mu_Pull(struct Mu *mu)
 
 void Mu_Push(struct Mu *mu)
 {
-     if (!mu->initialized) return;
-     assert([NSOpenGLContext currentContext] == [mu_get_session(mu)->opengl_view openGLContext]);
-     glFlush();
-     [[NSOpenGLContext currentContext] flushBuffer];
+     @autoreleasepool {
+          if (!mu->initialized) return;
+          assert([NSOpenGLContext currentContext] == [mu_get_session(mu)->opengl_view openGLContext]);
+          glFlush();
+          [[NSOpenGLContext currentContext] flushBuffer];
+     }
 }
 
-Mu_Bool Mu_LoadImage(const char *filename, struct Mu_Image *image)
+Mu_Bool Mu_LoadImage(const char *filename, struct Mu_Image *d_image)
 {
-     return MU_FALSE;
+     CGImageSourceRef image_source;
+     /* open image file */ {
+          NSString *file_url_string = [[NSString alloc] initWithUTF8String:filename];
+          CFURLRef file_url = (CFURLRef)[NSURL fileURLWithPath: file_url_string];
+          image_source = CGImageSourceCreateWithURL(file_url, NULL);
+          CFRelease(file_url), file_url = NULL;
+          CFRelease(file_url_string), file_url_string = NULL;
+          if (!image_source) return MU_FALSE;
+     }
+     CGImageRef image = CGImageSourceCreateImageAtIndex(image_source, 0, NULL);
+     size_t w = CGImageGetWidth(image);
+     size_t h = CGImageGetHeight(image);
+     CFDataRef rawData = CGDataProviderCopyData(CGImageGetDataProvider(image));
+     UInt8 * buf = (UInt8 *) CFDataGetBytePtr(rawData); 
+     CFIndex length = CFDataGetLength(rawData);
+     d_image->pixels = malloc(length);
+     d_image->channels = length / (w*h);
+     memcpy(d_image->pixels, buf, length);
+     d_image->width = w;
+     d_image->height = h;
+     CFRelease(rawData);
+     CFRelease(image);
+     CFRelease(image_source);
+     return MU_TRUE;
 }
 
 #include <AudioToolbox/ExtendedAudioFile.h>

@@ -29,6 +29,10 @@ ODIR="${ODIR:-"${HERE}"/output}"
  OD="$(dirname "${O}")"
  [ -d "${OD}" ] || mkdir -p "${OD}"
  cp "${I}" "${O}")
+(O="${ODIR}"/test_assets/ln2.png I="${HERE}"/test_assets/ln2.png
+ OD="$(dirname "${O}")"
+ [ -d "${OD}" ] || mkdir -p "${OD}"
+ cp "${I}" "${O}")
 
 # Bundle app:
 (O="${ODIR}"/mutest.app O_ELFNAME="mu_test.elf" I_ELF="${ODIR}/mu_test.elf" I_PLIST="${HERE}/mu_test-macos-Info.plist" R_DIR="${ODIR}"/test_assets

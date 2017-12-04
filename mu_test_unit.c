@@ -344,12 +344,15 @@ int main(int argc, char **argv)
                     { mu.gamepad.left_thumb_stick, mu.gamepad.left_trigger },
                     { mu.gamepad.right_thumb_stick, mu.gamepad.right_trigger }
                };
+               float black_rgb[3] = { 0.04f, 0.04f, 0.04f };
+               float grey_rgb[3] = { 0.94f, 0.94f, 0.94f };
                int const sticks_n = sizeof sticks / sizeof *sticks;
                for (int stick_i = 0; stick_i < sticks_n; ++stick_i) {
                     int bw = 50;
                     int bx = cx;
                     int by = cy;
-                    glColor3f(0.94f, 0.94f, 0.94f);
+                    float *color = grey_rgb;
+                    glColor3f(color[0], color[1], color[2]);
                     glBegin(GL_QUADS);
                     glVertex2f(bx, by-bw);
                     glVertex2f(bx+bw, by-bw);
@@ -363,7 +366,8 @@ int main(int argc, char **argv)
                     int px = bx + bw/2 + bw/2*x - pw/2;
                     int py = by - bw + bw/2 + (-bw/2*y) + pw/2;
 
-                    glColor3f(0.04f, 0.04f, 0.04f);
+                    color = black_rgb;
+                    glColor3f(color[0], color[1], color[2]);
                     glBegin(GL_QUADS);
                     glVertex2f(px, py-pw);
                     glVertex2f(px+pw, py-pw);
@@ -373,7 +377,33 @@ int main(int argc, char **argv)
 
                     cx += bw + 10;
                }
-          }
+               cy += 50 + 10;
+               cx -= 10 + 10/2 + 50;
+               int rw = 25;
+               struct {
+                   struct Mu_DigitalButton dir;
+                   struct Mu_Int2 point;
+               } dpad[] = {
+                   { mu.gamepad.up_button, { 0, -rw } },
+                   { mu.gamepad.down_button, { 0, +rw } },
+                   { mu.gamepad.left_button, { -rw, 0 } },
+                   { mu.gamepad.right_button, { +rw, 0 } },
+               };
+               int dpad_n = sizeof dpad / sizeof *dpad;
+               for (int dpad_i = 0; dpad_i < dpad_n; ++dpad_i) {
+                   int bw = 16;
+                   int bx = cx + dpad[dpad_i].point.x - bw/2;
+                   int by = cy + dpad[dpad_i].point.y - bw/2;
+                   float *color = dpad[dpad_i].dir.down? black_rgb:grey_rgb;
+                   glColor3f(color[0], color[1], color[2]);
+                   glBegin(GL_QUADS);
+                   glVertex2f(bx, by-bw);
+                   glVertex2f(bx+bw, by-bw);
+                   glVertex2f(bx+bw, by);
+                   glVertex2f(bx, by);
+                   glEnd();
+               }
+           }
 
           /* show mouse position */ {
                struct Mu_Int2 mp = mu.mouse.position;

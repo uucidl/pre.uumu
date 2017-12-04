@@ -883,11 +883,11 @@ struct Mu_Gamepad_HID_Mapping const mu_ds4_mapping = {
      },
      .left_thumb_stick = {
 	  .x_address = { .usage_page = kHIDPage_GenericDesktop, .usage = kHIDUsage_GD_X }, .y_address = { .usage_page = kHIDPage_GenericDesktop, .usage = kHIDUsage_GD_Y },
-	  .xmin = 0.0f, .xmax = 255.0f, .ymin = 0.0f, .ymax = 255.0f,
+	  .xmin = 0.0f, .xmax = 255.0f, .ymin = 255.0f, .ymax = 0.0f,
      },
      .right_thumb_stick = {
 	  .x_address = { .usage_page = kHIDPage_GenericDesktop, .usage = kHIDUsage_GD_Z }, .y_address = { .usage_page = kHIDPage_GenericDesktop, .usage = kHIDUsage_GD_Rz },
-	  .xmin = 0.0f, .xmax = 255.0f, .ymin = 0.0f, .ymax = 255.0f,
+	  .xmin = 0.0f, .xmax = 255.0f, .ymin = 255.0f, .ymax = 0.0f,
      },
 };
 
@@ -910,20 +910,20 @@ struct Mu_Gamepad_HID_Mapping const mu_huijia_3_0xe8f_0x3013_mapping = {
      .right_button = { .address = { .usage_page = kHIDPage_GenericDesktop, .usage = 0x39 }, .states_n = 3, .states = { 3, 2, 1, } },
      .left_trigger = {
 	  .address = { .usage_page = kHIDPage_Button, .usage = 0x05 },
-	  .xmin = 0.0f, .xmax = 1.0f
+	  .xmin = 0.0f, .xmax = 255.0f
      },
      .right_trigger = {
 	  .address = { .usage_page = kHIDPage_Button, .usage = 0x06 },
-	  .xmin = 0.0f, .xmax = 1.0f
+	  .xmin = 0.0f, .xmax = 255.0f
      },
      .left_thumb_stick = {
 	  .x_address = { .usage_page = kHIDPage_GenericDesktop, .usage = kHIDUsage_GD_X }, .y_address = { .usage_page = kHIDPage_GenericDesktop, .usage = kHIDUsage_GD_Y },
-	  .xmin = 0.0f, .xmax = 255.0f, .ymin = 0.0f, .ymax = 255.0f,
+	  .xmin = 0.0f, .xmax = 255.0f, .ymin = 255.0f, .ymax = 0.0f,
      },
      .right_thumb_stick = {
 	  .x_address = { .usage_page = kHIDPage_GenericDesktop, .usage = kHIDUsage_GD_Rz },
 	  .y_address = { .usage_page = kHIDPage_GenericDesktop, .usage = kHIDUsage_GD_Z },
-	  .xmin = 0.0f, .xmax = 255.0f, .ymin = 0.0f, .ymax = 255.0f,
+	  .xmin = 0.0f, .xmax = 255.0f, .ymin = 255.0f, .ymax = 0.0f,
      },
 };
 

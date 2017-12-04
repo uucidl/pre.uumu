@@ -36,7 +36,7 @@ struct Mu_DigitalButton {
 
 struct Mu_AnalogButton {
     float threshold;
-    float value;
+    float value; // @representation: [0,1]
     Mu_Bool down;
     Mu_Bool pressed;
     Mu_Bool released;
@@ -44,8 +44,8 @@ struct Mu_AnalogButton {
 
 struct Mu_Stick {
     float threshold;
-    float x;
-    float y;
+    float x; // @representation: [-1,+1] <=> [left, right]
+    float y; // @representation: [-1,+1] <=> [bottom, top]
 };
 
 struct Mu_Gamepad {
@@ -87,14 +87,14 @@ struct Mu_Window {
 };
 
 struct Mu_AudioFormat {
-    uint32_t samples_per_second; // number of "frames" of n=channels samples per second
+    uint32_t samples_per_second; // number of "frames" (of n=channels samples) per second
     uint32_t channels;
     uint32_t bytes_per_sample;
 };
 
 struct Mu_AudioBuffer {
     int16_t *samples;
-    size_t samples_count; // total number of samples in the interleaved buffer, with n=channels samples per frame
+    size_t samples_count; // frame_count*channels
     struct Mu_AudioFormat format;
 };
 

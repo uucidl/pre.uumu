@@ -198,8 +198,10 @@ int main(int argc, char **argv)
 	  .window.position.x=640,
 	  .window.size.x=640,
 	  .window.size.y=480,
-	  .gamepad.left_trigger.threshold=0.01f,
-	  .gamepad.right_trigger.threshold=0.01f,
+	  .gamepad.left_trigger.threshold=1.0/50.0f,
+	  .gamepad.right_trigger.threshold=1.0/50.0f,
+	  .gamepad.left_thumb_stick.threshold=1.0/50.0f,
+	  .gamepad.right_thumb_stick.threshold=1.0/50.0f,
 	  .audio.callback = main_audio_callback,
      };
      if (!Mu_Initialize(&mu)) {
@@ -316,9 +318,9 @@ int main(int argc, char **argv)
 		    
 		    float const x = sticks[stick_i].stick.x;
 		    float const y = sticks[stick_i].stick.y;
-		    int pw = 4 + 8*sticks[stick_i].growth.value;
+		    int pw = 4 + (bw-4)*sticks[stick_i].growth.value;
 		    int px = bx + bw/2 + bw/2*x - pw/2;
-		    int py = by - bw + bw/2 + bw/2*y + pw/2;
+		    int py = by - bw + bw/2 + (-bw/2*y) + pw/2;
 		    
 		    glColor3f(0.04f, 0.04f, 0.04f);
 		    glBegin(GL_QUADS);

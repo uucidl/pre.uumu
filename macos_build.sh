@@ -25,7 +25,7 @@ ODIR="${ODIR:-"${HERE}"/output}"
 	    -std=c11 \
     && printf "PROGRAM\t%s\n" "${O}") || exit 1
 
-(O="${ODIR}"/test_assets/chime.aif I="${HERE}"/test_assets/chime.aif
+(O="${ODIR}"/test_assets/chime.wav I="${HERE}"/test_assets/chime.wav
  OD="$(dirname "${O}")"
  [ -d "${OD}" ] || mkdir -p "${OD}"
  cp "${I}" "${O}")

@@ -22,6 +22,8 @@
 #include <string.h>
 
 #define MU_TEST_INTERNAL static
+// @note: marks assets
+#define MU_TEST_ASSET(x__) x__
 
 struct Mu_Test_AudioNote_InitParameters
 {
@@ -211,7 +213,7 @@ int main(int argc, char **argv)
 
      struct Mu_AudioBuffer test_audio;
      Mu_Bool test_audio_loaded = MU_FALSE;
-     char const * test_sound_path = "test_assets/chime.aif";
+     char const * test_sound_path = MU_TEST_ASSET("test_assets/chime.wav");
      char buffer[4096];
      int const buffer_n = sizeof buffer;
      if (buffer_n != platform_get_resource_path(buffer, buffer_n, test_sound_path, strlen(test_sound_path))) {

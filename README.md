@@ -1,12 +1,14 @@
-Implementing Per Vognsen's Mu API
+# Per Vognsen's Mu API
 
 Per Vognsen designed the [Mu API](xxxx_mu.h) as an alternative to libraries like SDL,
 SML. I find myself agreeing with many of its design decisions.
 
 He documented it at:
-- @url: https://gist.github.com/pervognsen/6a67966c5dc4247a0021b95c8d0a7b72 (code as of the stream 2)
+- (code as of the stream 2) @url: https://gist.github.com/pervognsen/6a67966c5dc4247a0021b95c8d0a7b72
 - @url: https://www.youtube.com/watch?v=NG_mUhc8LRw
 - @url: https://www.youtube.com/watch?v=pAIdfsT7-EU
+
+## Goals and pinciples
 
 His goals:
 - minimal platform layer for multimedia apps (in terms of binary/source size)
@@ -25,8 +27,6 @@ His goals:
 This is achieved with a global datastructure, whose entries serve as
 much as possible as both input and output.
 
-Other principles: 
-
 Precompute redundant data that is most often useful to users, rather
 than doing it lazilly and potentially too often. Even if that's
 increasing the surface area of the API.
@@ -44,13 +44,22 @@ Compromises:
 As of stream #2, audio has been implemented via a callback, pulling
 samples regularly from the high priority audio thread.
 
-Experiments to try:
+## Is this an alternative to SDL?
+
+You could see it like that, however this idea is more useful as a seed
+for your own application's platform layer. It's a reusable idea first,
+and an implementation second.
+
+Take it, add more things to the Mu structure as needed by your
+application.
+
+## Experiments to try:
 
 - The input/output struct is plain old data (if you except the
   platform specific handles) ; which means it should be trivial to
   record sequence of values to replay back the application eventually.
 
-Some other personal comments:
+## Some other personal comments:
 
 A push API for audio is certainly possible, however I personally think
 if it make sense, it should prevent gaps in audio as the result of a

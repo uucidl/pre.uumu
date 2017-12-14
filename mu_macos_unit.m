@@ -211,7 +211,9 @@ struct Mu_Session
      struct Mu_Cocoa cocoa_resources;
 
      struct Mu *pull_destination;
-     
+
+     mach_timebase_info_data_t timebase;
+
 #if MU_MACOS_RUN_MODE == MU_MACOS_RUN_MODE_COROUTINE
      char* run_loop_fiber_stack;
      ucontext_t run_loop_fiber;
@@ -564,39 +566,39 @@ mu_audio_output_close(struct Mu* mu, struct Mu_Session* session)
 @end
 
 MU_MACOS_INTERNAL
-void mu_time_update(struct Mu* mu, uint64_t ticks)
+void mu_time_update(struct Mu* mu, struct Mu_Session* session, uint64_t ticks)
 {
   uint64_t const t0 = mu->time.initial_ticks;
   uint64_t const tps = mu->time.ticks_per_second;
   mu->time.delta_ticks = (ticks - t0) - mu->time.ticks;
   mu->time.ticks = ticks - t0;
+  mach_timebase_info_data_t timebase = session->timebase;
   
-  mu->time.nanoseconds = mu->time.ticks * 1000 * 1000 * 1000 / tps;
+  mu->time.nanoseconds = mu->time.ticks * timebase.numer / timebase.denom;
   mu->time.microseconds = mu->time.nanoseconds / 1000; 
   mu->time.milliseconds = mu->time.microseconds / 1000;
   mu->time.seconds = (float)mu->time.ticks / (float)tps;
 
-  mu->time.delta_nanoseconds = mu->time.delta_ticks * 1000 * 1000 * 1000 / tps;
+  mu->time.delta_nanoseconds = mu->time.delta_ticks * timebase.numer / timebase.denom;
   mu->time.delta_microseconds = mu->time.delta_nanoseconds / 1000; 
   mu->time.delta_milliseconds = mu->time.delta_microseconds / 1000;
   mu->time.delta_seconds = (float)mu->time.delta_ticks / (float)tps;
 }
 
 MU_MACOS_INTERNAL
-Mu_Bool mu_time_initialize(struct Mu *mu)
+Mu_Bool mu_time_initialize(struct Mu *mu, struct Mu_Session *session)
 {
-  mach_timebase_info_data_t timebase;
-  if (mach_timebase_info(&timebase)) return MU_FALSE;
+  if (mach_timebase_info(&session->timebase)) return MU_FALSE;
   mu->time.initial_ticks = mach_absolute_time();
-  mu->time.ticks_per_second = 1000*1000*1000*timebase.numer/timebase.denom;
-  mu_time_update(mu, mu->time.initial_ticks);
+  mu->time.ticks_per_second = 1000*1000*1000*session->timebase.numer/session->timebase.denom;
+  mu_time_update(mu, session, mu->time.initial_ticks);
   return MU_TRUE;
 }
 
 MU_MACOS_INTERNAL
-void mu_time_pull(struct Mu* mu)
+void mu_time_pull(struct Mu* mu, struct Mu_Session* session)
 {
-  mu_time_update(mu, mach_absolute_time());
+  mu_time_update(mu, session, mach_absolute_time());
 }
 
 MU_MACOS_INTERNAL
@@ -1024,7 +1026,7 @@ Mu_Bool Mu_Initialize(struct Mu *mu)
 {
      struct Mu_Session *session = calloc(sizeof(struct Mu_Session), 1);
      @autoreleasepool {
-          if (!mu_time_initialize(mu)) return MU_FALSE;
+          if (!mu_time_initialize(mu, session)) return MU_FALSE;
 	  if (!mu_application_initialize(mu, session)) return MU_FALSE;
 	  if (!mu_window_initialize(mu, session)) return MU_FALSE;
 	  if (!mu_audio_initialize(mu, session)) return MU_FALSE;
@@ -1247,7 +1249,7 @@ void mu_run_loop_fiber(struct Mu_Session* session)
 
 Mu_Bool Mu_Pull(struct Mu *mu)
 {
-     if (!mu->initialized) return MU_FALSE;
+     if (!mu->initialized || mu->quit) return MU_FALSE;
      struct Mu_Session* session = mu_get_session(mu);
 
      if (!atomic_flag_test_and_set(&session->output_audio_isdefault)) {
@@ -1286,7 +1288,7 @@ Mu_Bool Mu_Pull(struct Mu *mu)
 #else
      mu_window_pull(mu, session);
 #endif
-     mu_time_pull(mu);
+     mu_time_pull(mu, session);
      mu_gamepad_pull(mu, session);
      session->pull_destination = NULL;
      
@@ -1316,18 +1318,13 @@ Mu_Bool Mu_Pull(struct Mu *mu)
 	  old_window.size.y != mu->window.size.y;
      
      [[session->opengl_view openGLContext] makeCurrentContext];
-#if !defined(NDEBUG)
-     // @debug debug background
-     glClearColor(1.0,105/255.0f,180/255.0f,0);
-     glClear(GL_COLOR_BUFFER_BIT);
-#endif
      return MU_TRUE;
 }
 
 void Mu_Push(struct Mu *mu)
 {
+     if (!mu->initialized || mu->quit) return;
      @autoreleasepool {
-          if (!mu->initialized) return;
           assert([NSOpenGLContext currentContext] == [mu_get_session(mu)->opengl_view openGLContext]);
           glFlush();
           [[NSOpenGLContext currentContext] flushBuffer];

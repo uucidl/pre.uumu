@@ -45,3 +45,19 @@ ODIR="${ODIR:-"${HERE}"/output}"
  mkdir -p "${O}"/Contents/Resources &&
  cp -R "${R_DIR}" "${O}"/Contents/Resources &&
  printf "MACOS_APP\t%s\n" "${O}") || exit 1
+
+
+(O="${ODIR}"/mu_lat_test.elf ;
+ "${OBJCC}" -o "${O}" \
+	    -DMU_MACOS_RUN_MODE=MU_MACOS_RUN_MODE_COROUTINE \
+	    "${HERE}"/mu_macos_unit.m \
+	    "${HERE}"/mu_lat_test_unit.c \
+	    -Wall \
+	    -framework OpenGL \
+	    -framework IOKit \
+	    -framework AppKit \
+	    -framework CoreAudio \
+            -framework AudioToolbox \
+	    -g -O2 \
+	    -std=c11 \
+    && printf "PROGRAM\t%s\n" "${O}") || exit 1

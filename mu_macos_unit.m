@@ -170,7 +170,7 @@ struct Mu_Gamepad_HID_Mapping_DigitalButton
      // MU_HID_MAPPING_MAX_STATES for HID buttons that trigger on
      // different discrete values. (Hatswitch)
      int states_n;
-     int states[MU_HID_MAPPING_MAX_STATES];     
+     int states[MU_HID_MAPPING_MAX_STATES];
 };
 
 struct Mu_Gamepad_HID_Mapping_AnalogButton
@@ -193,7 +193,7 @@ struct Mu_Gamepad_HID_Mapping
 #define X(button_name) struct Mu_Gamepad_HID_Mapping_DigitalButton button_name;
      MU_GAMEPAD_DIGITAL_BUTTONS_XENUM
 #undef X
-     
+
 #define X(analog_button_name) struct Mu_Gamepad_HID_Mapping_AnalogButton analog_button_name;
      MU_GAMEPAD_ANALOG_BUTTONS_XENUM
 #undef X
@@ -219,19 +219,19 @@ struct Mu_Session
      ucontext_t run_loop_fiber;
      ucontext_t main_fiber;
 #endif
-     // gamepad    
+     // gamepad
      IOHIDManagerRef hidmanager;
      struct Mu_Gamepad_HID_Mapping gamepad_hid_mapping;
 
      // can be touched more than once per `Mu_Pull`, due to the event
      // based nature of the Macos IOKit APIs.
-     struct Mu_Gamepad gamepad; 
-     
+     struct Mu_Gamepad gamepad;
+
      // video&opengl session state
      Mu_WindowDelegate *window_delegate;
      Mu_OpenGLView *opengl_view;
      Mu_Bool macos_wants_us_to_quit;
-     
+
      // audio session state
      atomic_flag output_audio_isdefault;
      struct Mu_Audio audio;
@@ -262,7 +262,7 @@ MU_MACOS_INTERNAL
 int mu_coreaudio_formats_partition(int formats_n, AudioStreamRangedDescription formats[formats_n], struct Mu_AudioFormat const audioformat)
 {
      int formats_good_n = 0;
-     
+
      while (formats_good_n < formats_n) {
 	  AudioStreamRangedDescription format = formats[formats_good_n];
 	  if (format.mFormat.mChannelsPerFrame < audioformat.channels) goto known_bad;
@@ -358,7 +358,7 @@ mu_coreaudio_callback(
      if (found_outputs_n < outputs_n) return noErr;
      if (outputs[0].frame_n != outputs[1].frame_n) return noErr; // actually that's weird
      if (outputs[0].frame_n == 0) return noErr; // that's weird too
-     
+
      // generate into temporary buffers
      struct Mu_AudioFormat audioformat = {
 	  .samples_per_second = session->audio.format.samples_per_second,
@@ -437,7 +437,7 @@ mu_audio_output_start(struct Mu *mu, struct Mu_Session *session)
      AudioStreamRangedDescription selected_format;
 
      AudioStreamRangedDescription *formats = calloc(1, sizeof *formats);
-     
+
      for(int stream_i = 0; stream_i < streams_n; ++stream_i) {
 	  AudioStreamID const stream = streams[stream_i];
 	  OSStatus stream_status = noErr;
@@ -500,7 +500,7 @@ mu_audio_output_start(struct Mu *mu, struct Mu_Session *session)
 #if !defined(NDEBUG)
      session->audio_debug_signal_phase_inc = 1000.0 / mu->audio.format.samples_per_second;
 #endif
-     
+
      if (status = AudioDeviceCreateIOProcID(output_device, mu_coreaudio_callback, session, &session->IOProcID), status != noErr) {
 	  mu->error = "could not create audio callback";
 	  goto error;
@@ -523,7 +523,7 @@ mu_audio_initialize(struct Mu* mu, struct Mu_Session *session)
 {
      OSStatus status = noErr;
      if (!mu->audio.callback) mu->audio.callback = mu_audio_emit_silence;
-     
+
      if (AudioObjectAddPropertyListener(kAudioObjectSystemObject, &MU_MACOS_COREAUDIO_DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS, mu_coreaudio_property_listener, session), status != noErr) {
 	  mu->error = "could not listen to default output device";
 	  goto error;
@@ -573,14 +573,14 @@ void mu_time_update(struct Mu* mu, struct Mu_Session* session, uint64_t ticks)
   mu->time.delta_ticks = (ticks - t0) - mu->time.ticks;
   mu->time.ticks = ticks - t0;
   mach_timebase_info_data_t timebase = session->timebase;
-  
+
   mu->time.nanoseconds = mu->time.ticks * timebase.numer / timebase.denom;
-  mu->time.microseconds = mu->time.nanoseconds / 1000; 
+  mu->time.microseconds = mu->time.nanoseconds / 1000;
   mu->time.milliseconds = mu->time.microseconds / 1000;
   mu->time.seconds = (float)mu->time.ticks / (float)tps;
 
   mu->time.delta_nanoseconds = mu->time.delta_ticks * timebase.numer / timebase.denom;
-  mu->time.delta_microseconds = mu->time.delta_nanoseconds / 1000; 
+  mu->time.delta_microseconds = mu->time.delta_nanoseconds / 1000;
   mu->time.delta_milliseconds = mu->time.delta_microseconds / 1000;
   mu->time.delta_seconds = (float)mu->time.delta_ticks / (float)tps;
 }
@@ -608,7 +608,7 @@ Mu_Bool mu_application_initialize(struct Mu *mu, struct Mu_Session* session)
      [NSApp setActivationPolicy: NSApplicationActivationPolicyRegular]; // act as a bundled app, even if not bundled
      /* create menu bar */ {
 	  NSMenu *menubar = [[NSMenu new] autorelease];
-	  
+
 	  NSMenu *app_menu = [[NSMenu new] autorelease];
 	  [app_menu addItem: [[[NSMenuItem alloc] initWithTitle:@"Quit" action:@selector(terminate:) keyEquivalent:@"q"] autorelease]];
 
@@ -656,7 +656,7 @@ Mu_Bool mu_window_initialize(struct Mu *mu, struct Mu_Session* session)
      int const window_width = get_opt(mu->window.size.x, MU_DEFAULT_WIDTH);
      int const window_height = get_opt(mu->window.size.y, MU_DEFAULT_HEIGHT);
 #undef get_opt
-     
+
      NSWindow *window = [[NSWindow alloc] autorelease];
      /* setup window */ {
 	  Mu_NSWindowStyleMask const window_style_mask = Mu_NSWindowStyleMaskTitled | Mu_NSWindowStyleMaskClosable | Mu_NSWindowStyleMaskMiniaturizable | Mu_NSWindowStyleMaskResizable | Mu_NSWindowStyleMaskTexturedBackground;
@@ -787,7 +787,7 @@ void mu_gamepad_hid_input_value_callback(void *context, IOReturn result, void *s
      struct Mu_Session *session = context;
      struct Mu_Gamepad_HID_Mapping *mapping = &session->gamepad_hid_mapping;
      struct Mu_Gamepad *gamepad = &session->gamepad; // accumulated state, which will be later published to Mu
-     
+
      IOHIDElementRef const element = IOHIDValueGetElement(value);
      int state = (int)IOHIDValueGetIntegerValue(value);
      float const scaled_value = IOHIDValueGetScaledValue(value, kIOHIDValueScaleTypePhysical);
@@ -804,11 +804,11 @@ void mu_gamepad_hid_input_value_callback(void *context, IOReturn result, void *s
 #define X(analog_button_name) if (mu_gamepad_hidaddress_equals(mapping->analog_button_name.address, address)) mu_gamepad_hid_update_analog_button(&gamepad->analog_button_name, &mapping->analog_button_name, scaled_value);
      MU_GAMEPAD_ANALOG_BUTTONS_XENUM;
 #undef X
-     
+
 #define X(stick_name) mu_gamepad_hid_update_stick(&gamepad->stick_name, &mapping->stick_name, address, scaled_value);
      MU_GAMEPAD_STICKS_XENUM;
 #undef X
-     
+
 #if 0 // @debug show HID values/messages
      float analog = IOHIDValueGetScaledValue(value, kIOHIDValueScaleTypePhysical);
      // Button debugging
@@ -943,10 +943,10 @@ Mu_Bool mu_gamepad_initialize(struct Mu *mu, struct Mu_Session *session)
           @{@(kIOHIDDeviceUsagePageKey): @(kHIDPage_GenericDesktop), @(kIOHIDDeviceUsageKey): @(kHIDUsage_GD_GamePad)}, // DS4
 	  @{@(kIOHIDDeviceUsagePageKey): @(kHIDPage_GenericDesktop), @(kIOHIDDeviceUsageKey): @(kHIDUsage_GD_MultiAxisController)},
      ];
-     
+
      NSArray *input_value_matching_array = @[
 	  @{@(kIOHIDElementUsagePageKey): @(kHIDPage_GenericDesktop)},
-	  @{@(kIOHIDElementUsagePageKey): @(kHIDPage_Button)},	  
+	  @{@(kIOHIDElementUsagePageKey): @(kHIDPage_Button)},
      ];
      [input_value_matching_array retain];
      IOHIDManagerSetDeviceMatchingMultiple(manager, (__bridge CFArrayRef)device_matching_array);
@@ -971,7 +971,7 @@ Mu_Bool mu_gamepad_initialize(struct Mu *mu, struct Mu_Session *session)
 	       session->gamepad_hid_mapping = mu_ds4_mapping;
 	       mu->gamepad.connected = MU_TRUE;
 	  } else if (vid == 0xe8f && pid == 0x3013) {
-	       MU_MACOS_TRACEF("Gamepad: found HuiJia USB Gamepad connector\n");       
+	       MU_MACOS_TRACEF("Gamepad: found HuiJia USB Gamepad connector\n");
 	       IOHIDDeviceRegisterInputValueCallback(device, mu_gamepad_hid_input_value_callback, (void *)session);
 	       IOHIDDeviceSetInputValueMatchingMultiple(device, (__bridge CFArrayRef)input_value_matching_array);
 	       session->gamepad_hid_mapping = mu_huijia_3_0xe8f_0x3013_mapping;
@@ -983,10 +983,10 @@ Mu_Bool mu_gamepad_initialize(struct Mu *mu, struct Mu_Session *session)
 	  }
      }
      [input_value_matching_array release], input_value_matching_array = nil;
-     
+
      // @todo establish live feedback. However doesn't that necessitate changing the API?
      IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
-     
+
      session->hidmanager = manager;
      return MU_TRUE;
 error:
@@ -1187,7 +1187,7 @@ Mu_Bool mu_nsevent_process(struct Mu * const mu, struct Mu_Session const * const
 				       target: self
 				     selector: @selector(interruptMainLoop)
 				     userInfo: nil
-				      repeats: YES]; 
+				      repeats: YES];
      [[NSRunLoop currentRunLoop] addTimer: nstimer forMode: NSRunLoopCommonModes];
      struct Mu *mu;
      if ((mu = session->pull_destination) && mu->mouse.left_button.down) {
@@ -1232,7 +1232,7 @@ void mu_window_pull(struct Mu * const mu, struct Mu_Session * const session)
 	  }
           if (events != events_buffer) free(events), events = NULL;
      }
-            
+
      mu->quit = mu->quit || session->macos_wants_us_to_quit;
 }
 
@@ -1268,7 +1268,7 @@ Mu_Bool Mu_Pull(struct Mu *mu)
 #define X(analog_button_name) mu_update_analog_button(&mu->gamepad.analog_button_name, mu->gamepad.analog_button_name.value);
      MU_GAMEPAD_ANALOG_BUTTONS_XENUM;
 #undef X
-     
+
      // reset mouse state
      mu->mouse.left_button = (struct Mu_DigitalButton){.down=mu->mouse.left_button.down};
      mu->mouse.right_button = (struct Mu_DigitalButton){.down=mu->mouse.right_button.down};
@@ -1291,7 +1291,7 @@ Mu_Bool Mu_Pull(struct Mu *mu)
      mu_time_pull(mu, session);
      mu_gamepad_pull(mu, session);
      session->pull_destination = NULL;
-     
+
      if (mu->quit) {
 	  [session->window_delegate release];
 	  [session->opengl_view release];
@@ -1306,17 +1306,17 @@ Mu_Bool Mu_Pull(struct Mu *mu)
 	  return MU_FALSE;
      }
 
-     NSRect contentRect =		
-	  [session->cocoa_resources.window convertRectToScreen:		
-		       [session->opengl_view frame]];		
-     struct Mu_Window old_window = mu->window;		
-     mu->window.position.x = contentRect.origin.x;		
-     mu->window.position.y = contentRect.origin.y;		
-     mu->window.size.x = contentRect.size.width;		
+     NSRect contentRect =
+	  [session->cocoa_resources.window convertRectToScreen:
+		       [session->opengl_view frame]];
+     struct Mu_Window old_window = mu->window;
+     mu->window.position.x = contentRect.origin.x;
+     mu->window.position.y = contentRect.origin.y;
+     mu->window.size.x = contentRect.size.width;
      mu->window.size.y = contentRect.size.height;
      mu->window.resized = old_window.size.x != mu->window.size.x ||
 	  old_window.size.y != mu->window.size.y;
-     
+
      [[session->opengl_view openGLContext] makeCurrentContext];
      return MU_TRUE;
 }
@@ -1346,7 +1346,7 @@ Mu_Bool Mu_LoadImage(const char *filename, struct Mu_Image *d_image)
      size_t w = CGImageGetWidth(image);
      size_t h = CGImageGetHeight(image);
      CFDataRef rawData = CGDataProviderCopyData(CGImageGetDataProvider(image));
-     UInt8 * buf = (UInt8 *) CFDataGetBytePtr(rawData); 
+     UInt8 * buf = (UInt8 *) CFDataGetBytePtr(rawData);
      CFIndex length = CFDataGetLength(rawData);
      d_image->pixels = malloc(length);
      d_image->channels = length / (w*h);

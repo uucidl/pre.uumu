@@ -378,7 +378,7 @@ int main(int argc, char **argv)
           /* show mouse position */ {
                struct Mu_Int2 mp = mu.mouse.position;
                int b = mu.mouse.left_button.down? 8:4;
-               glColor3f(0.5f, 0.7f, 0.2f);
+               glColor3f(0.6f, 0.9f, 0.8f);
                glBegin(GL_QUADS);
                glVertex2f(mp.x-b, mp.y-b);
                glVertex2f(mp.x+b, mp.y-b);

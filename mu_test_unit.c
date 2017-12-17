@@ -238,6 +238,8 @@ int main(int argc, char **argv)
      GLuint test_image_texture_id = 0;
      GLuint const defGL_TEXTURE_RECTANGLE = 0x84F5;
 
+     uint64_t last_nanoseconds = mu.time.nanoseconds;
+     uint8_t last_nanoseconds_wraparound_n = 0;
      while (Mu_Pull(&mu)) {
           if (test_image_texture_id == 0) {
                glGenTextures(1, &test_image_texture_id);
@@ -279,6 +281,26 @@ int main(int argc, char **argv)
                glVertex2f(10+100, cy+100);
                glVertex2f(10, cy+100);
                glEnd();
+          }
+          cy += 100;
+
+          /* time wraparound */ {
+              if (mu.time.nanoseconds < last_nanoseconds) {
+                  ++last_nanoseconds_wraparound_n;
+              }
+              last_nanoseconds = mu.time.nanoseconds;
+              cy += 10;
+              if (last_nanoseconds_wraparound_n & 1) {
+                  glColor3f(1.0f, 0.0f, 0.0f);
+              } else {
+                  glColor3f(0.0f, 1.0f, 1.0f);
+              }
+              glBegin(GL_QUADS);
+              glVertex2f(10, cy);
+              glVertex2f(10+100, cy);
+              glVertex2f(10+100, cy+100);
+              glVertex2f(10, cy+100);
+              glEnd();
           }
           cy += 100;
 

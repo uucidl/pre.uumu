@@ -22,6 +22,7 @@
 #include <string.h>
 
 #define MU_TEST_INTERNAL static
+#define MU_TEST_FN_STATE static
 // @note: marks assets
 #define MU_TEST_ASSET(x__) x__
 
@@ -237,6 +238,18 @@ int main(int argc, char **argv)
      int frame_i = 0;
      GLuint test_image_texture_id = 0;
      GLuint const defGL_TEXTURE_RECTANGLE = 0x84F5;
+     struct ButtonTransitionCheck {
+         struct Mu_DigitalButton* button;
+         char const* name;
+         int n;
+         int max_n;
+         int press_n;
+         float last_press_seconds;
+     } button_checks[] = {
+         { &mu.mouse.left_button, "left button", },
+         { &mu.mouse.right_button, "right button", },
+     };
+     int const button_checks_n = sizeof button_checks / sizeof button_checks[0];
 
      uint64_t last_nanoseconds = mu.time.nanoseconds;
      uint8_t last_nanoseconds_wraparound_n = 0;
@@ -268,6 +281,7 @@ int main(int argc, char **argv)
           glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
           int px = ((int)rint(mu.time.seconds / 3.0 * 640)) % mu.window.size.x;
           int cy = 10;
+          int cx = 10;
 
           /* dropped frame indicator */ {
                if (frame_i & 1) {
@@ -427,17 +441,55 @@ int main(int argc, char **argv)
                }
            }
 
-          /* show mouse position */ {
+           /* show mouse position and clicks */ {
+               for (struct ButtonTransitionCheck *c = &button_checks[0];
+                    c < &button_checks[button_checks_n];
+                    ++c) {
+                   c->n += c->button->pressed? 1:0;
+                   c->n -= c->button->released? 1:0;
+                   if (c->button->pressed) {
+                       c->last_press_seconds = mu.time.seconds;
+                       c->press_n += c->button->pressed? 1:0;
+                   } else if (mu.time.seconds - c->last_press_seconds >= 1.0) {
+                       c->press_n = 0;
+                   }
+
+                   int o_max_n = c->max_n;
+                   c->max_n = c->max_n<c->n? c->n:c->max_n;
+                   if (c->max_n > o_max_n) printf("%s: max transition increased to: %d\n", c->name, c->max_n);
+               }
                struct Mu_Int2 mp = mu.mouse.position;
                int b = mu.mouse.left_button.down? 8:4;
+               int cx = mp.x;
+               int cy = mp.y;
                glColor3f(0.6f, 0.9f, 0.8f);
                glBegin(GL_QUADS);
-               glVertex2f(mp.x-b, mp.y-b);
-               glVertex2f(mp.x+b, mp.y-b);
-               glVertex2f(mp.x+b, mp.y+b);
-               glVertex2f(mp.x-b, mp.y+b);
+               glVertex2f(cx-b, cy-b);
+               glVertex2f(cx+b, cy-b);
+               glVertex2f(cx+b, cy+b);
+               glVertex2f(cx-b, cy+b);
                glEnd();
-          }
+
+               cy += 2*b;
+
+               for (struct ButtonTransitionCheck *c = &button_checks[0]; c < &button_checks[button_checks_n]; ++c) {
+                   cy += 4;
+                   b = 16;
+                   cy += b;
+                   int bcx = cx;
+                   for (int press_i = 0; press_i < c->press_n; ++press_i) {
+                       glBegin(GL_QUADS);
+                       glVertex2f(bcx-b, cy-b);
+                       glVertex2f(bcx+b, cy-b);
+                       glVertex2f(bcx+b, cy+b);
+                       glVertex2f(bcx-b, cy+b);
+                       glEnd();
+                       bcx += 4 + 2*b;
+                   }
+                   cy += b;
+               }
+           }
+
 
           if (mu.mouse.left_button.pressed) {
                mu_test_audiosynth_push_note(&mu_test_audiosynth, 432.0 * pow(2.0, mu.mouse.position.x/240.0));

@@ -107,8 +107,6 @@ int main(int argc, char** argv)
         last_frame_ms = frame_ms;
         double const push_to_pull_waited_ms = mu.time.delta_seconds*1000.0;
         minmax_action_d(&min_push_to_pull_wait_ms, &max_push_to_pull_wait_ms, push_to_pull_waited_ms);
-        printf("1-waited: %f ms [%f %f]\n", push_to_pull_waited_ms, min_push_to_pull_wait_ms, max_push_to_pull_wait_ms);
-        printf("1-frame: %llu ms [%llu %llu]\n", frame_period_ms, min_frame_ms, max_frame_ms);
         for (char* tp = &mu.text[0], *tpl = &mu.text[mu.text_length]; tp < tpl; ++tp) {
             if (*tp == 033) mu.quit = MU_TRUE;
         }
@@ -143,7 +141,6 @@ int main(int argc, char** argv)
             ;
 
         Mu_Pull(&mu);
-        printf("2-waited: %f ms\n", mu.time.delta_seconds * 1000.0);
         mouse_was_pressed += mu.mouse.left_button.pressed?1:0;
 
         /* display mouse */ if (1) {
@@ -154,6 +151,11 @@ int main(int argc, char** argv)
         for (char* tp = &mu.text[0], *tpl = &mu.text[mu.text_length]; tp < tpl; ++tp) {
             if (*tp == 033) mu.quit = MU_TRUE;
         }
+        if (mu.mouse.delta_wheel) {
+            scan_out_wait_ms += scan_out_wait_ms * mu.mouse.delta_wheel / 16;
+            printf("scan_out_wait_ms: %f\n", scan_out_wait_ms);
+        }
+
         Mu_Push(&mu);
     }
 }

@@ -31,4 +31,7 @@ struct Mu_Win32 {
     struct IAudioRenderClient *audio_render_client;
 
     HANDLE wgl_context;
+    struct ID3D11Device *d3d11_device;
+    struct ID3D11DeviceContext *d3d11_device_context;
+    struct IDXGISwapChain* dxgi_swap_chain;
 };

@@ -20,19 +20,19 @@ MU_EXTERN_END
 #define _USE_MATH_DEFINES
 #include <math.h>
 #define _NO_CRT_STDIO_INLINE
-#include <stdio.h>
 #include <stdarg.h>
+#include <stdio.h>
 #define NO_STRICT
-#include <windows.h>
-#include <wincodec.h>
-#include <xinput.h>
-#include <mmdeviceapi.h>
 #include <audioclient.h>
 #include <audiosessiontypes.h>
-#include <wincodec.h>
+#include <d3d11.h>
 #include <mfapi.h>
 #include <mfidl.h>
 #include <mfreadwrite.h>
+#include <mmdeviceapi.h>
+#include <wincodec.h>
+#include <windows.h>
+#include <xinput.h>
 
 #ifndef AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
 #define AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM 0x80000000
@@ -93,6 +93,19 @@ static LRESULT CALLBACK Mu_Window_Proc(HWND window, UINT message, WPARAM wparam,
     switch (message) {
     case WM_SIZE:
         mu->window.resized = MU_TRUE;
+        if (auto dxgi_swap_chain = mu->win32->dxgi_swap_chain)
+        {
+          // TODO(nicolas): remember flags
+          // TODO(nicolas): problem, this necessitates all references to the swap chain to have been cleared, normally. See remarks at:
+          // @url{https://msdn.microsoft.com/fr-fr/library/windows/desktop/bb174577(v=vs.85)}
+          mu->win32->d3d11_device_context->ClearState();
+          HRESULT hr = 0;
+          if (hr = dxgi_swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH|
+              0*DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT), hr != 0)
+          {
+            printf("ERROR: ResizeBuffers() with hr: 0x%x\n", hr);
+          }
+        }
         break;
     case WM_INPUT: {
         UINT size;
@@ -476,6 +489,96 @@ done:
     return result;
 }
 
+#if !defined(MU_D3D11_ENABLED)
+#define MU_D3D11_ENABLED (1)
+#endif
+
+#if MU_D3D11_ENABLED
+void Mu_D3D11_Push(Mu *mu) {
+        if (auto swap_chain = mu->win32->dxgi_swap_chain) {
+          swap_chain->Present(1, 0);
+        }
+}
+
+Mu_Bool Mu_D3D11_Initialize(Mu *mu) {
+        HMODULE d3d11_module = LoadLibraryA("d3d11.dll");
+        if (!d3d11_module) {
+                mu->error = "did not find d3d11.dll";
+                return MU_FALSE;
+        }
+        typedef HRESULT D3D11CreateDeviceAndSwapChainProc(
+                _In_opt_        IDXGIAdapter         *pAdapter,
+                D3D_DRIVER_TYPE      DriverType,
+                HMODULE              Software,
+                UINT                 Flags,
+                _In_opt_  const D3D_FEATURE_LEVEL    *pFeatureLevels,
+                UINT                 FeatureLevels,
+                UINT                 SDKVersion,
+                _In_opt_  const DXGI_SWAP_CHAIN_DESC *pSwapChainDesc,
+                _Out_opt_       IDXGISwapChain       **ppSwapChain,
+                _Out_opt_       ID3D11Device         **ppDevice,
+                _Out_opt_       D3D_FEATURE_LEVEL    *pFeatureLevel,
+                _Out_opt_       ID3D11DeviceContext  **ppImmediateContext
+                );
+
+        D3D11CreateDeviceAndSwapChainProc *CreateDeviceAndSwapChain = (D3D11CreateDeviceAndSwapChainProc*) GetProcAddress(d3d11_module, "D3D11CreateDeviceAndSwapChain");
+        if (!CreateDeviceAndSwapChain) {
+                mu->error = "can't find D3D11CreateDeviceAndSwapChain in d3d11.dll"; //TODO(nicolas): path of dll here
+                return MU_FALSE;
+        }
+
+        D3D_FEATURE_LEVEL feature_levels[] = {D3D_FEATURE_LEVEL_11_0};
+        UINT feature_levels_n = sizeof feature_levels / sizeof feature_levels[0];
+        DXGI_SWAP_CHAIN_DESC swap_chain_desc = {};
+        {
+                auto &o = swap_chain_desc;
+                o.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+                o.SampleDesc.Count = 1; // Default non-AA
+                o.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+                o.BufferCount = 2;
+                o.OutputWindow = mu->win32->window;
+                o.Windowed = TRUE;
+                o.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+                o.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH|
+                        0*DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+        }
+        IDXGISwapChain *swap_chain = NULL;
+        ID3D11Device *device = NULL;
+        ID3D11DeviceContext *device_context = NULL;
+        HRESULT hr = CreateDeviceAndSwapChain(
+                NULL /* default adapter */,
+                D3D_DRIVER_TYPE_HARDWARE,
+                NULL /* software renderer module */,
+                0*D3D11_CREATE_DEVICE_SINGLETHREADED|
+                1*D3D11_CREATE_DEVICE_DEBUG|
+                1*D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+                NULL /* feature_levels */, 0,
+                D3D11_SDK_VERSION,
+                &swap_chain_desc,
+                &mu->win32->dxgi_swap_chain,
+                &mu->win32->d3d11_device,
+                feature_levels /* feature level */,
+                &mu->win32->d3d11_device_context);
+        if (hr != 0) {
+                mu->error = "CreateDeviceAndSwapChain returned an error";
+                char *d_p = &mu->error_buffer[0];
+                int d_n = sizeof mu->error_buffer;
+                const char* s_p = "CreateDeviceAndSwapChain returned hr=0x";
+                const char nibbles[] = "0123456789ABCDEF"; 
+                for(; d_n && *s_p; d_n--, s_p++, d_p++) *d_p = *s_p;
+                for(int nibble = (sizeof hr)*2; d_n && nibble-- > 0; d_n--, d_p++) {
+                        *d_p = nibbles[(hr>>(4*nibble))&0xF];
+                }
+                if (d_n) {
+                        *d_p = '\0'; 
+                        mu->error = mu->error_buffer;
+                }
+                return MU_FALSE;
+        }
+        return MU_TRUE;
+}
+#endif
+
 // Mu_OpenGL
 
 void Mu_OpenGL_Push(Mu *mu) {
@@ -528,7 +631,10 @@ Mu_Bool Mu_Pull(Mu *mu) {
 }
 
 void Mu_Push(Mu *mu) {
+#if 0
     Mu_OpenGL_Push(mu);
+#endif
+    Mu_D3D11_Push(mu);
 }
 
 Mu_Bool Mu_Initialize(Mu *mu) {
@@ -547,9 +653,16 @@ Mu_Bool Mu_Initialize(Mu *mu) {
     if (!Mu_Audio_Initialize(mu)) {
         return MU_FALSE;
     }
+#if MU_D3D11_ENABLED
+    if (!Mu_D3D11_Initialize(mu)) {
+            return MU_FALSE;
+    }
+#endif
+#if 0
     if (!Mu_OpenGL_Initialize(mu)) {
         return MU_FALSE;
     }
+#endif
     mu->initialized = MU_TRUE;
     Mu_Pull(mu);
     return MU_TRUE;
@@ -618,6 +731,7 @@ done:
 static bool mf_initialized;
 
 Mu_Bool Mu_LoadAudio(const char *filename, Mu_AudioBuffer *audio) {
+    HRESULT hr = 0;
     Mu_Bool result = MU_FALSE;
     IMFSourceReader *source_reader = 0;
     IMFMediaType *media_type = 0;
@@ -631,7 +745,7 @@ Mu_Bool Mu_LoadAudio(const char *filename, Mu_AudioBuffer *audio) {
     int wide_filename_length = MultiByteToWideChar(CP_UTF8, 0, filename, -1, 0, 0);
     WCHAR *wide_filename = (WCHAR *)_alloca(wide_filename_length * sizeof(WCHAR));
     MultiByteToWideChar(CP_UTF8, 0, filename, -1, wide_filename, wide_filename_length);
-    for (HRESULT res = MFCreateSourceReaderFromURL(wide_filename, 0, &source_reader); res < 0;) {
+    for (hr = MFCreateSourceReaderFromURL(wide_filename, 0, &source_reader); hr < 0;) {
         goto done;
     }
     if (MFCreateMediaType(&media_type) < 0) {
@@ -645,7 +759,7 @@ Mu_Bool Mu_LoadAudio(const char *filename, Mu_AudioBuffer *audio) {
     media_type->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, win32_audio_format.nAvgBytesPerSec);
     media_type->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, win32_audio_format.wBitsPerSample);
     media_type->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE);
-    if (source_reader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, media_type) < 0) {
+    if (hr = source_reader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, media_type), hr != 0) {
         goto done;
     }
     size_t buffer_capacity = mu_audio_format.samples_per_second * mu_audio_format.bytes_per_sample; // 1 second of audio
@@ -656,7 +770,7 @@ Mu_Bool Mu_LoadAudio(const char *filename, Mu_AudioBuffer *audio) {
         DWORD flags;
         LONGLONG timestamp;
         IMFSample *sample;
-        if (source_reader->ReadSample(MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, &stream_index, &flags, &timestamp, &sample) < 0) {
+        if (hr = source_reader->ReadSample(MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, &stream_index, &flags, &timestamp, &sample), hr != 0) {
             free(buffer);
             goto done;
         }

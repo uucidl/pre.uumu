@@ -10,6 +10,7 @@
 #define BYTE unsigned char
 #include "flat_ps.h"
 #include "ortho_vs.h"
+#include "tex_ps.h"
 #undef BYTE
 
 #include "xxxx_mu.h"
@@ -241,6 +242,8 @@ typedef struct BufHdr {
 #define buf_push(b, x) (buf__fit(b, 1), b[buf_len(b)] = (x), buf__hdr(b)->len++)
 #define buf_free(b) ((b) ? free(buf__hdr(b)) : 0)
 
+#define buf_end(b__) (&b__[buf_len(b__)])
+
 void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
     size_t next_cap = 1 + 2 * buf_cap(buf);
     size_t new_cap = new_len >= next_cap ? new_len : next_cap;
@@ -260,12 +263,30 @@ void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
 struct FlatVertex2d {
     float posx, posy, posz;
     float colr, colg, colb, cola;
+    float tx, ty;
 };
+
+const D3D11_INPUT_ELEMENT_DESC FlatVertex2d_InputElements[] = {
+        {.SemanticName = "POSITION",
+         .Format = DXGI_FORMAT_R32G32B32_FLOAT,
+         .AlignedByteOffset = offsetof(struct FlatVertex2d, posx),
+         .InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA},
+        {.SemanticName = "COLOR",
+         .Format = DXGI_FORMAT_R32G32B32_FLOAT,
+         .AlignedByteOffset = offsetof(struct FlatVertex2d, colr),
+         .InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA},
+        {.SemanticName = "TEXCOORD",
+         .Format = DXGI_FORMAT_R32G32_FLOAT,
+         .AlignedByteOffset = offsetof(struct FlatVertex2d, tx),
+         .InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA},
+};
+const size_t FlatVertex2d_InputElementsN = sizeof FlatVertex2d_InputElements / sizeof FlatVertex2d_InputElements[0];
 
 struct GfxQuadCommand {
     float x0, x1, y0, y1;
     float r, g, b, a;
-    struct Mu_Image *image;
+    struct ID3D11Texture2D *tx;
+    float tx0, tx1, ty0, ty1;
 };
 
 int main(int argc, char **argv) {
@@ -327,6 +348,15 @@ int main(int argc, char **argv) {
         HRESULT hr;
         if (hr = COM_CALL(mu.win32->d3d11_device, CreatePixelShader, d3d11_flat_ps_bc, sizeof d3d11_flat_ps_bc, NULL, &flat_ps), hr != 0) {
             printf("ERROR: CreatePixelShader(flat_ps) returned 0x%x\n", hr);
+            return 1;
+        }
+    }
+
+    struct ID3D11PixelShader *tex_ps = NULL;
+    {
+        HRESULT hr;
+        if (hr = COM_CALL(mu.win32->d3d11_device, CreatePixelShader, d3d11_tex_ps_bc, sizeof d3d11_tex_ps_bc, NULL, &tex_ps), hr != 0) {
+            printf("ERROR: CreatePixelShader(tex_ps) returned 0x%x\n", hr);
             return 1;
         }
     }
@@ -414,17 +444,8 @@ int main(int argc, char **argv) {
 
     struct ID3D11InputLayout *imm_layout;
     {
-        D3D11_INPUT_ELEMENT_DESC descs[] = {
-                {.SemanticName = "POSITION",
-                 .Format = DXGI_FORMAT_R32G32B32_FLOAT,
-                 .AlignedByteOffset = offsetof(struct FlatVertex2d, posx),
-                 .InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA},
-                {.SemanticName = "COLOR",
-                 .Format = DXGI_FORMAT_R32G32B32_FLOAT,
-                 .AlignedByteOffset = offsetof(struct FlatVertex2d, colr),
-                 .InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA},
-        };
-        UINT descs_n = sizeof descs / sizeof descs[0];
+        const D3D11_INPUT_ELEMENT_DESC *descs = FlatVertex2d_InputElements;
+        UINT descs_n = FlatVertex2d_InputElementsN;
         HRESULT hr;
         if (hr = COM_CALL(mu.win32->d3d11_device, CreateInputLayout, descs, descs_n, d3d11_ortho_vs_bc, sizeof d3d11_ortho_vs_bc, &imm_layout), hr != 0) {
             printf("ERROR: CreateInputLayout(imm_layout) with hr: 0x%x\n", hr);
@@ -480,7 +501,7 @@ int main(int argc, char **argv) {
             }
             COM_CALL0(resource, Release), resource = NULL;
         }
-        int px = ((int)rint(mu.time.seconds / 3.0 * 640)) % mu.window.size.x;
+        int px = mu.window.size.x == 0 ? 0 : ((int)rint(mu.time.seconds / 3.0 * 640)) % mu.window.size.x;
         int cy = 10;
         int cx = 10;
 
@@ -531,21 +552,27 @@ int main(int argc, char **argv) {
         }
         cy += 100;
 
-#if 0
-          /* logo */ {
+        /* logo */ {
             cy += 10;
-            // TODO(nicolas): bind test_image_texture
-            glColor3f(1.0f, 1.0f, 1.0f);
             int w = test_image.width;
             int h = test_image.height;
-            glBegin(GL_QUADS);
-            glTexCoord2i(0, 0);                                 glVertex2f(10, cy);
-            glTexCoord2i(test_image.width, 0);                  glVertex2f(10+w, cy);
-            glTexCoord2i(test_image.width, test_image.height);  glVertex2f(10+w, cy+h);
-            glTexCoord2i(0, test_image.height);                 glVertex2f(10, cy+h);
+            float scale = 1.0f;
+            w *= scale;
+            h *= scale;
+            buf_push(cb,
+                     ((struct GfxQuadCommand){
+                             .x0 = 10,
+                             .x1 = 10 + w,
+                             .y0 = cy,
+                             .y1 = cy + h,
+                             .tx = test_image_texture,
+                             .tx0 = 0.0f,
+                             .tx1 = 1.0f,
+                             .ty0 = 0.0f,
+                             .ty1 = 1.0f,
+                     }));
             cy += h;
-          }
-#endif
+        }
 
         /* frame time */ {
             cy += 10;
@@ -681,61 +708,7 @@ int main(int argc, char **argv) {
             printf("A button was pressed\n");
         }
 
-        if (buf_len(cb) > 0) {
-            for (struct GfxQuadCommand *c_l = &cb[buf_len(cb)], *c_i = &cb[0]; c_i < c_l; ++c_i) {
-                int v_f = buf_len(vb);
-                buf_push(vb, ((struct FlatVertex2d){.posx = c_i->x0, .posy = c_i->y0}));
-                buf_push(vb, ((struct FlatVertex2d){.posx = c_i->x1, .posy = c_i->y0}));
-                buf_push(vb, ((struct FlatVertex2d){.posx = c_i->x1, .posy = c_i->y1}));
-                buf_push(vb, ((struct FlatVertex2d){.posx = c_i->x0, .posy = c_i->y1}));
-                int v_l = buf_len(vb);
-                for (int v_i = v_f; v_i < v_l; v_i++) {
-                    vb[v_i].colr = c_i->r;
-                    vb[v_i].colg = c_i->g;
-                    vb[v_i].colb = c_i->b;
-                    vb[v_i].cola = c_i->a;
-                    vb[v_i].posx = (vb[v_i].posx - 0.5f) * (2.0) / mu.window.size.x - 1.0f;
-                    vb[v_i].posy = (vb[v_i].posy - 0.5f) * (-2.0) / mu.window.size.y + 1.0f;
-                }
-                buf_push(ib, v_f + 0);
-                buf_push(ib, v_f + 1);
-                buf_push(ib, v_f + 2);
-                buf_push(ib, v_f + 2);
-                buf_push(ib, v_f + 3);
-                buf_push(ib, v_f + 0);
-            }
-        }
-
-        if (buf_len(vb) > 0) {
-            struct FlatVertex2d *d_vb;
-            struct ID3D11Resource *res = (struct ID3D11Resource *)imm_vertex_buffer;
-            HRESULT hr;
-            D3D11_MAPPED_SUBRESOURCE mapped_data;
-            if (hr = COM_CALL(mu.win32->d3d11_device_context, Map, res, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_data) == 0) {
-                size_t bytes_n = buf_len(vb) * sizeof vb[0];
-                d_vb = mapped_data.pData;
-                memcpy(d_vb, vb, bytes_n);
-                COM_CALL(mu.win32->d3d11_device_context, Unmap, res, 0);
-            } else {
-                printf("ERROR: Map(imm_vertex_buffer) with 0x%x\n", hr);
-                return 1;
-            }
-        }
-        if (buf_len(ib) > 0) {
-            uint16_t *d_ib;
-            struct ID3D11Resource *res = (struct ID3D11Resource *)imm_index_buffer;
-            HRESULT hr;
-            D3D11_MAPPED_SUBRESOURCE mapped_data;
-            if (hr = COM_CALL(mu.win32->d3d11_device_context, Map, res, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_data) == 0) {
-                size_t bytes_n = buf_len(ib) * sizeof ib[0];
-                d_ib = mapped_data.pData;
-                memcpy(d_ib, ib, bytes_n);
-                COM_CALL(mu.win32->d3d11_device_context, Unmap, res, 0);
-            } else {
-                printf("ERROR: Map(imm_index_buffer) with 0x%x\n", hr);
-                return 1;
-            }
-        }
+        // Render to D3D
 
         COM_CALL(mu.win32->d3d11_device_context, OMSetRenderTargets, 1, &output_view, NULL);
         {
@@ -755,15 +728,129 @@ int main(int argc, char **argv) {
             };
             COM_CALL(mu.win32->d3d11_device_context, RSSetViewports, 1, &viewport);
         }
-        COM_CALL(mu.win32->d3d11_device_context, IASetIndexBuffer, imm_index_buffer, DXGI_FORMAT_R16_UINT, 0);
-        COM_CALL(mu.win32->d3d11_device_context, IASetPrimitiveTopology, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        UINT imm_vertex_buffer_stride = sizeof(struct FlatVertex2d);
-        UINT imm_vertex_buffer_offset = 0;
-        COM_CALL(mu.win32->d3d11_device_context, IASetVertexBuffers, 0, 1, &imm_vertex_buffer, &imm_vertex_buffer_stride, &imm_vertex_buffer_offset);
-        COM_CALL(mu.win32->d3d11_device_context, IASetInputLayout, imm_layout);
-        COM_CALL(mu.win32->d3d11_device_context, PSSetShader, flat_ps, NULL, 0);
-        COM_CALL(mu.win32->d3d11_device_context, VSSetShader, ortho_vs, NULL, 0);
-        COM_CALL(mu.win32->d3d11_device_context, DrawIndexed, buf_len(ib), 0, 0);
+
+        if (buf_len(cb) > 0) {
+            struct GfxQuadCommand *command_l = buf_end(cb);
+            struct GfxQuadCommand *command_i = &cb[0];
+            size_t draw_batches_n = 0;
+            while (command_i < command_l) {
+                // truncate intermediary vertex and index buffers
+                if (vb)
+                    buf__hdr(vb)->len = 0;
+                if (ib)
+                    buf__hdr(ib)->len = 0;
+
+                struct ID3D11Texture2D *batch_tx = NULL;
+
+                for (uint64_t prev_material = command_i < command_l ? (uint64_t)command_i->tx : 0, material = prev_material;
+                     (command_i < command_l && prev_material == (material = (uint64_t)command_i->tx));
+                     ++command_i, prev_material = material) {
+                    batch_tx = command_i->tx;
+                    struct GfxQuadCommand *c_i = command_i;
+                    int v_f = buf_len(vb);
+                    buf_push(vb,
+                             ((struct FlatVertex2d){
+                                     .posx = c_i->x0,
+                                     .posy = c_i->y0,
+                                     .tx = c_i->tx0,
+                                     .ty = c_i->ty0,
+                             }));
+                    buf_push(vb,
+                             ((struct FlatVertex2d){
+                                     .posx = c_i->x1,
+                                     .posy = c_i->y0,
+                                     .tx = c_i->tx1,
+                                     .ty = c_i->ty0,
+                             }));
+                    buf_push(vb,
+                             ((struct FlatVertex2d){
+                                     .posx = c_i->x1,
+                                     .posy = c_i->y1,
+                                     .tx = c_i->tx1,
+                                     .ty = c_i->ty1,
+                             }));
+                    buf_push(vb,
+                             ((struct FlatVertex2d){
+                                     .posx = c_i->x0,
+                                     .posy = c_i->y1,
+                                     .tx = c_i->tx0,
+                                     .ty = c_i->ty1,
+                             }));
+                    int v_l = buf_len(vb);
+                    for (int v_i = v_f; v_i < v_l; v_i++) {
+                        vb[v_i].colr = c_i->r;
+                        vb[v_i].colg = c_i->g;
+                        vb[v_i].colb = c_i->b;
+                        vb[v_i].cola = c_i->a;
+                        vb[v_i].posx = (vb[v_i].posx - 0.5f) * (2.0) / mu.window.size.x - 1.0f;
+                        vb[v_i].posy = (vb[v_i].posy - 0.5f) * (-2.0) / mu.window.size.y + 1.0f;
+                    }
+                    buf_push(ib, v_f + 0);
+                    buf_push(ib, v_f + 1);
+                    buf_push(ib, v_f + 2);
+                    buf_push(ib, v_f + 2);
+                    buf_push(ib, v_f + 3);
+                    buf_push(ib, v_f + 0);
+                }
+                // flush primitives
+                if (buf_len(vb) > 0) {
+                    struct FlatVertex2d *d_vb;
+                    struct ID3D11Resource *res = (struct ID3D11Resource *)imm_vertex_buffer;
+                    HRESULT hr;
+                    D3D11_MAPPED_SUBRESOURCE mapped_data;
+                    if (hr = COM_CALL(mu.win32->d3d11_device_context, Map, res, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_data) == 0) {
+                        size_t bytes_n = buf_len(vb) * sizeof vb[0];
+                        d_vb = mapped_data.pData;
+                        memcpy(d_vb, vb, bytes_n);
+                        COM_CALL(mu.win32->d3d11_device_context, Unmap, res, 0);
+                    } else {
+                        printf("ERROR: Map(imm_vertex_buffer) with 0x%x\n", hr);
+                        return 1;
+                    }
+                }
+                if (buf_len(ib) > 0) {
+                    uint16_t *d_ib;
+                    struct ID3D11Resource *res = (struct ID3D11Resource *)imm_index_buffer;
+                    HRESULT hr;
+                    D3D11_MAPPED_SUBRESOURCE mapped_data;
+                    if (hr = COM_CALL(mu.win32->d3d11_device_context, Map, res, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_data) == 0) {
+                        size_t bytes_n = buf_len(ib) * sizeof ib[0];
+                        d_ib = mapped_data.pData;
+                        memcpy(d_ib, ib, bytes_n);
+                        COM_CALL(mu.win32->d3d11_device_context, Unmap, res, 0);
+                    } else {
+                        printf("ERROR: Map(imm_index_buffer) with 0x%x\n", hr);
+                        return 1;
+                    }
+                }
+                COM_CALL(mu.win32->d3d11_device_context, IASetIndexBuffer, imm_index_buffer, DXGI_FORMAT_R16_UINT, 0);
+                COM_CALL(mu.win32->d3d11_device_context, IASetPrimitiveTopology, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                UINT imm_vertex_buffer_stride = sizeof(struct FlatVertex2d);
+                UINT imm_vertex_buffer_offset = 0;
+                COM_CALL(mu.win32->d3d11_device_context, IASetVertexBuffers, 0, 1, &imm_vertex_buffer, &imm_vertex_buffer_stride, &imm_vertex_buffer_offset);
+                COM_CALL(mu.win32->d3d11_device_context, IASetInputLayout, imm_layout);
+                COM_CALL(mu.win32->d3d11_device_context, VSSetShader, ortho_vs, NULL, 0);
+                if (batch_tx != NULL) {
+                    HRESULT hr;
+                    ID3D11Resource *resource = (ID3D11Resource *)batch_tx;
+                    ID3D11ShaderResourceView *view;
+                    if (hr = COM_CALL(mu.win32->d3d11_device, CreateShaderResourceView, resource, NULL, &view), hr != 0) {
+                        printf("ERROR: CreateShaderResourceView(batch_tx) with hr: 0x%x\n", hr);
+                        return 1;
+                    }
+                    COM_CALL(mu.win32->d3d11_device_context, PSSetShaderResources, 0, 1, &view);
+                    COM_CALL0(view, Release);
+                    COM_CALL(mu.win32->d3d11_device_context, PSSetShader, tex_ps, NULL, 0);
+                } else {
+                    COM_CALL(mu.win32->d3d11_device_context, PSSetShaderResources, 0, 0, NULL);
+                    COM_CALL(mu.win32->d3d11_device_context, PSSetShader, flat_ps, NULL, 0);
+                }
+
+                COM_CALL(mu.win32->d3d11_device_context, DrawIndexed, buf_len(ib), 0, 0);
+                draw_batches_n++;
+            }
+        }
+
         Mu_Push(&mu);
         COM_CALL0(output_view, Release), output_view = NULL;
 

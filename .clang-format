@@ -2,6 +2,8 @@ AlignAfterOpenBracket: Align
 AllowShortBlocksOnASingleLine: 'false'
 AllowShortCaseLabelsOnASingleLine: 'true'
 AllowShortFunctionsOnASingleLine: 'false'
+AllowShortIfStatementsOnASingleLine: 'false'
+AllowShortLoopsOnASingleLine: 'false'
 BinPackArguments: 'false'
 BinPackParameters: 'false'
 BreakBeforeBraces: 'Attach'

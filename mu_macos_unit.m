@@ -1061,17 +1061,17 @@ Mu_Bool mu_gamepad_initialize(struct Mu *mu, struct Mu_Session *session) {
         goto error;
     }
     NSArray *device_matching_array = @[
-        @{@(kIOHIDDeviceUsagePageKey) : @(kHIDPage_GenericDesktop),
-          @(kIOHIDDeviceUsageKey) : @(kHIDUsage_GD_Joystick)},
-        @{@(kIOHIDDeviceUsagePageKey) : @(kHIDPage_GenericDesktop),
-          @(kIOHIDDeviceUsageKey) : @(kHIDUsage_GD_GamePad)}, // DS4
-        @{@(kIOHIDDeviceUsagePageKey) : @(kHIDPage_GenericDesktop),
-          @(kIOHIDDeviceUsageKey) : @(kHIDUsage_GD_MultiAxisController)},
+       @{ @(kIOHIDDeviceUsagePageKey) : @(kHIDPage_GenericDesktop),
+           @(kIOHIDDeviceUsageKey) : @(kHIDUsage_GD_Joystick) },
+        @{ @(kIOHIDDeviceUsagePageKey) : @(kHIDPage_GenericDesktop),
+           @(kIOHIDDeviceUsageKey) : @(kHIDUsage_GD_GamePad) }, // DS4
+        @{ @(kIOHIDDeviceUsagePageKey) : @(kHIDPage_GenericDesktop),
+           @(kIOHIDDeviceUsageKey) : @(kHIDUsage_GD_MultiAxisController) },
     ];
 
     NSArray *input_value_matching_array = @[
-        @{@(kIOHIDElementUsagePageKey) : @(kHIDPage_GenericDesktop)},
-        @{@(kIOHIDElementUsagePageKey) : @(kHIDPage_Button)},
+        @{ @(kIOHIDElementUsagePageKey) : @(kHIDPage_GenericDesktop) },
+        @{ @(kIOHIDElementUsagePageKey) : @(kHIDPage_Button) },
     ];
     [input_value_matching_array retain];
     IOHIDManagerSetDeviceMatchingMultiple(manager, (__bridge CFArrayRef)device_matching_array);

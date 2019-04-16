@@ -40,7 +40,7 @@ MU_EXTERN_END
 #ifdef _DEBUG
 #define Assert(x)                                                                                                                                              \
     if (!(x)) {                                                                                                                                                \
-        MessageBoxA(0, x, "Assertion Failed", MB_OK);                                                                                                          \
+        MessageBoxA(0, #x, "Assertion Failed", MB_OK);                                                                                                         \
         __debugbreak();                                                                                                                                        \
     }
 #else
@@ -94,11 +94,27 @@ static LRESULT CALLBACK Mu_Window_Proc(HWND window, UINT message, WPARAM wparam,
     LRESULT result = 0;
     Mu *mu = (Mu *)GetWindowLongPtrA(window, GWLP_USERDATA);
     switch (message) {
+    case WM_NCCREATE: {
+        // @feature{HiDPI}
+        CREATESTRUCT *createstruct = (CREATESTRUCT *)lparam;
+        SetWindowLongPtr(window, GWLP_USERDATA, (LONG_PTR)createstruct->lpCreateParams);
+#if 0
+        EnableNonClientDpiScaling(window); // @todo GetProcAddress
+#endif
+        result = DefWindowProcA(window, message, wparam, lparam);
+    } break;
+
+    case WM_DPICHANGED: {
+        RECT *rect = (RECT *)lparam;
+        SetWindowPos(window, 0, rect->left, rect->top, rect->right - rect->left, rect->bottom - rect->top, SWP_NOZORDER | SWP_NOACTIVATE);
+    } break;
+
     case WM_SIZE:
         mu->window.resized = MU_TRUE;
         if (auto dxgi_swap_chain = mu->win32->dxgi_swap_chain) {
             // TODO(nicolas): remember flags
-            // TODO(nicolas): problem, this necessitates all references to the swap chain to have been cleared, normally. See remarks at:
+            // TODO(nicolas): problem, this necessitates all references to the swap chain to
+            // have been cleared, normally. See remarks at:
             // @url{https://msdn.microsoft.com/fr-fr/library/windows/desktop/bb174577(v=vs.85)}
             mu->win32->d3d11_device_context->ClearState();
             HRESULT hr = 0;
@@ -117,9 +133,11 @@ static LRESULT CALLBACK Mu_Window_Proc(HWND window, UINT message, WPARAM wparam,
             RAWINPUT *raw_input = (RAWINPUT *)buffer;
             if (raw_input->header.dwType == RIM_TYPEMOUSE && raw_input->data.mouse.usFlags == MOUSE_MOVE_RELATIVE) {
                 // @todo: how can I be seeing double releases?
-                // I'm seeing a mouse press, followed by a release, and at that point I press once more and the button appears to be still down, but I don't
-                // receive a press event and however I see a release later. I think it could be because we're seeing multiple WM_INPUT events in this sampling
-                // loop and we should not use update_digital_button here. I solved this very issue in my own mac version
+                // I'm seeing a mouse press, followed by a release, and at that point I press once
+                // more and the button appears to be still down, but I don't receive a press event
+                // and however I see a release later. I think it could be because we're seeing
+                // multiple WM_INPUT events in this sampling loop and we should not use
+                // update_digital_button here. I solved this very issue in my own mac version
                 mu->mouse.delta_position.x += raw_input->data.mouse.lLastX;
                 mu->mouse.delta_position.y += raw_input->data.mouse.lLastY;
 
@@ -230,16 +248,16 @@ Mu_Bool Mu_Window_Initialize(Mu *mu) {
     window_class.lpfnWndProc = Mu_Window_Proc;
     window_class.lpszClassName = "mu";
     window_class.style = CS_HREDRAW | CS_VREDRAW;
+    window_class.hCursor = LoadCursor(NULL, IDC_ARROW);
     if (RegisterClassA(&window_class) == 0) {
         mu->error = "Failed to initialize window class.";
         return MU_FALSE;
     }
-    mu->win32->window = CreateWindowA("mu", mu->window.title, WS_OVERLAPPEDWINDOW, window_x, window_y, window_width, window_height, 0, 0, 0, 0);
+    mu->win32->window = CreateWindowA("mu", mu->window.title, WS_OVERLAPPEDWINDOW, window_x, window_y, window_width, window_height, 0, 0, 0, mu);
     if (!mu->win32->window) {
         mu->error = "Failed to create window.";
         return MU_FALSE;
     }
-    SetWindowLongPtr(mu->win32->window, GWLP_USERDATA, (LONG_PTR)mu);
     ShowWindow(mu->win32->window, SW_SHOW);
     mu->win32->device_context = GetDC(mu->win32->window);
     return MU_TRUE;
@@ -624,10 +642,30 @@ Mu_Bool Mu_Pull(Mu *mu) {
 }
 
 void Mu_Push(Mu *mu) {
-#if 0
+#if MU_D3D11_ENABLED
+    Mu_D3D11_Push(mu);
+#else
     Mu_OpenGL_Push(mu);
 #endif
-    Mu_D3D11_Push(mu);
+    RECT client_rectangle;
+    GetClientRect(mu->win32->window, &client_rectangle);
+
+    Mu_Int2 size = {};
+    size.x = client_rectangle.right - client_rectangle.left;
+    size.y = client_rectangle.bottom - client_rectangle.top;
+
+    if ((mu->window.size.x != 0 && mu->window.size.x != size.x) || (mu->window.size.y != 0 && mu->window.size.y != size.y)) {
+        /*
+        @todo @feature{HiDpi}
+        BOOL WINAPI AdjustWindowRectExForDpi(
+          _Inout_ LPRECT lpRect,
+          _In_    DWORD  dwStyle,
+          _In_    BOOL   bMenu,
+          _In_    DWORD  dwExStyle,
+          _In_    UINT   dpi
+          );
+        */
+    }
 }
 
 Mu_Bool Mu_Initialize(Mu *mu) {
@@ -650,8 +688,7 @@ Mu_Bool Mu_Initialize(Mu *mu) {
     if (!Mu_D3D11_Initialize(mu)) {
         return MU_FALSE;
     }
-#endif
-#if 0
+#else
     if (!Mu_OpenGL_Initialize(mu)) {
         return MU_FALSE;
     }
@@ -702,6 +739,8 @@ Mu_Bool Mu_LoadImage(const char *filename, Mu_Image *image) {
     image->channels = 4;
     uint32_t buffer_size = 4 * width * height;
     image->pixels = (uint8_t *)malloc(buffer_size);
+    if (!image->pixels)
+        goto done;
     uint32_t buffer_stride = 4 * width;
     if (rgba_image_frame->CopyPixels(0, buffer_stride, buffer_size, image->pixels) < 0) {
         free(image->pixels);
@@ -781,6 +820,9 @@ Mu_Bool Mu_LoadAudio(const char *filename, Mu_AudioBuffer *audio) {
                 buffer_capacity = new_buffer_size;
             }
             buffer = (char *)realloc(buffer, buffer_capacity);
+            if (!buffer) {
+                goto done;
+            }
         }
         BYTE *sample_buffer_pointer;
         sample_buffer->Lock(&sample_buffer_pointer, 0, 0);

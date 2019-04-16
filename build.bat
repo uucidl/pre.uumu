@@ -10,7 +10,7 @@ cl -Fe:mu_test_d3d11.exe pervognsen_mu.cpp mu_test_d3d11_unit.c -Z7 -Od -W1 -nol
    -link -SUBSYSTEM:CONSOLE
 if %ERRORLEVEL% neq 0 goto error_exit
 
-cl -Fe:mu_test_gl.exe pervognsen_mu.cpp mu_test_gl_unit.c -Z7 -Od -W1 -nologo ^
+cl -Fe:mu_test_gl.exe -DMU_D3D11_ENABLED=0 pervognsen_mu.cpp mu_test_gl_unit.c -Z7 -Od -W1 -nologo ^
    -link -SUBSYSTEM:CONSOLE
 if %ERRORLEVEL% neq 0 goto error_exit
 

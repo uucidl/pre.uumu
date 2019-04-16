@@ -8,9 +8,13 @@
 #define MU_EXTERN_END }
 
 MU_EXTERN_BEGIN
+#include "traces.h"
 #include "xxxx_mu.h"
 #include "xxxx_mu_win32.h"
 MU_EXTERN_END
+
+
+#include "deps/uuspdr/include/spdr/spdr.hh"
 
 #ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
@@ -25,6 +29,8 @@ MU_EXTERN_END
 #include <audioclient.h>
 #include <audiosessiontypes.h>
 #include <d3d11.h>
+#include <dxgi.h>
+#include <dxgi1_3.h>
 #include <mfapi.h>
 #include <mfidl.h>
 #include <mfreadwrite.h>
@@ -119,7 +125,7 @@ static LRESULT CALLBACK Mu_Window_Proc(HWND window, UINT message, WPARAM wparam,
             mu->win32->d3d11_device_context->ClearState();
             HRESULT hr = 0;
             if (hr = dxgi_swap_chain->ResizeBuffers(
-                        0, 0, 0, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH | 0 * DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT),
+                        0, 0, 0, DXGI_FORMAT_UNKNOWN, 0*DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH | 0 * DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT),
                 hr != 0) {
                 printf("ERROR: ResizeBuffers() with hr: 0x%x\n", hr);
             }
@@ -510,7 +516,9 @@ done:
 #if MU_D3D11_ENABLED
 void Mu_D3D11_Push(Mu *mu) {
     if (auto swap_chain = mu->win32->dxgi_swap_chain) {
+        SPDR_BEGIN(gbl_spdr, "Mu", "Present");
         swap_chain->Present(1, 0);
+        SPDR_END(gbl_spdr, "Mu", "Present");
     }
 }
 
@@ -552,11 +560,8 @@ Mu_Bool Mu_D3D11_Initialize(Mu *mu) {
         o.OutputWindow = mu->win32->window;
         o.Windowed = TRUE;
         o.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-        o.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH | 0 * DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+        o.Flags = 0*DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH | 0 * DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT | 0 * DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
     }
-    IDXGISwapChain *swap_chain = NULL;
-    ID3D11Device *device = NULL;
-    ID3D11DeviceContext *device_context = NULL;
     HRESULT hr = CreateDeviceAndSwapChain(NULL /* default adapter */,
                                           D3D_DRIVER_TYPE_HARDWARE,
                                           NULL /* software renderer module */,
@@ -585,6 +590,29 @@ Mu_Bool Mu_D3D11_Initialize(Mu *mu) {
             mu->error = mu->error_buffer;
         }
         return MU_FALSE;
+    }
+    if (swap_chain_desc.Flags & DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT) {
+      IDXGISwapChain *swap_chain = mu->win32->dxgi_swap_chain;
+      IDXGISwapChain2 *swap_chain2 = NULL;
+      if (swap_chain->QueryInterface(__uuidof(IDXGISwapChain2), (void**)&swap_chain2) != 0) {
+        mu->error = "IDXGISwapChain2 cannot be obtained.";
+        return MU_FALSE;
+      }
+      if (swap_chain2->SetMaximumFrameLatency(1) != 0) {
+        mu->error = "SetMaximumFrameLatency failed.";
+        return MU_FALSE;
+      }
+    } else {
+      ID3D11Device *device = mu->win32->d3d11_device;
+      IDXGIDevice1 *device1 = NULL;
+      if (device->QueryInterface(__uuidof(IDXGIDevice1), (void**)&device1) != 0) {
+        mu->error = "IDXGIDevice1 could not be obtained from IDXGIDevice.";
+        return MU_FALSE;
+      }
+      if (device1->SetMaximumFrameLatency(1) != 0) {
+        mu->error = "SetMaximumFrameLatency failed.";
+        return MU_FALSE;
+      }
     }
     return MU_TRUE;
 }
@@ -668,7 +696,14 @@ void Mu_Push(Mu *mu) {
     }
 }
 
+
+static char gbl_spdr_buffer[2*1024*1024];
+SPDR_Context *gbl_spdr;
+
+
 Mu_Bool Mu_Initialize(Mu *mu) {
+    spdr_init(&gbl_spdr, gbl_spdr_buffer, sizeof gbl_spdr_buffer);
+  
     if (!Mu_Window_Initialize(mu)) {
         return MU_FALSE;
     }
@@ -847,3 +882,7 @@ done:
 }
 
 MU_EXTERN_END
+
+#include "deps/uuspdr/src/spdr_win32_unit.c"
+
+#pragma comment(lib, "legacy_stdio_definitions.lib")

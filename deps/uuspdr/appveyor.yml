@@ -1,0 +1,29 @@
+platform:
+- x86
+- x64
+version: 1.0.{build}
+os:
+- Visual Studio 2015
+- Visual Studio 2017
+build: off
+build_script:
+- '@echo off'
+- setlocal
+- ps: >-
+    If ($env:Platform -Match "x86") {
+      $env:VCVARS_PLATFORM="x86"
+    } Else {
+      $env:VCVARS_PLATFORM="amd64"
+    }
+- ps: >-
+    If ($env:APPVEYOR_BUILD_WORKER_IMAGE -Match "Visual Studio 2015") {
+      $env:VCVARS_PATH="%VS140COMNTOOLS%\..\..\VC\"
+    }
+- ps: >-
+    If ($env:APPVEYOR_BUILD_WORKER_IMAGE -Match "Visual Studio 2017") {
+      $env:VCVARS_PATH="C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\"
+    }
+- call "%VCVARS_PATH%\vcvarsall.bat" %VCVARS_PLATFORM%
+- call build_tests.bat
+- call build_examples.bat
+- exit /b 0

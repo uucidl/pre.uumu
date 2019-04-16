@@ -1,0 +1,2 @@
+@url: https://github.com/uucidl/uu.spdr/archive/8553488e483baf3e1923fc20df918e90a4e8a21d.zip
+@name: uu.spdr

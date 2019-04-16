@@ -13,6 +13,7 @@
 #include <stdlib.h>
 
 enum {
+    // Constants
     MU_FALSE = 0,
     MU_TRUE = 1,
     MU_MAX_KEYS = 256,

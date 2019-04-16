@@ -1,0 +1,13 @@
+AlignAfterOpenBracket: Align
+AllowShortBlocksOnASingleLine: 'false'
+AllowShortCaseLabelsOnASingleLine: 'true'
+AllowShortFunctionsOnASingleLine: 'false'
+BinPackArguments: 'false'
+BinPackParameters: 'false'
+BreakBeforeBraces: 'Attach'
+ColumnLimit: '160'
+ConstructorInitializerAllOnOneLineOrOnePerLine: 'true'
+ConstructorInitializerIndentWidth: '0'
+ContinuationIndentWidth: '8'
+IndentWidth: '4'
+

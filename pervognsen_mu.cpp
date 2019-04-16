@@ -12,7 +12,6 @@ MU_EXTERN_BEGIN
 #include "xxxx_mu_win32.h"
 MU_EXTERN_END
 
-
 #ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
 #endif
@@ -39,7 +38,11 @@ MU_EXTERN_END
 #endif
 
 #ifdef _DEBUG
-#define Assert(x) if (!(x)) { MessageBoxA(0, x, "Assertion Failed", MB_OK); __debugbreak(); }
+#define Assert(x)                                                                                                                                              \
+    if (!(x)) {                                                                                                                                                \
+        MessageBoxA(0, x, "Assertion Failed", MB_OK);                                                                                                          \
+        __debugbreak();                                                                                                                                        \
+    }
 #else
 #define Assert(x)
 #endif
@@ -93,18 +96,17 @@ static LRESULT CALLBACK Mu_Window_Proc(HWND window, UINT message, WPARAM wparam,
     switch (message) {
     case WM_SIZE:
         mu->window.resized = MU_TRUE;
-        if (auto dxgi_swap_chain = mu->win32->dxgi_swap_chain)
-        {
-          // TODO(nicolas): remember flags
-          // TODO(nicolas): problem, this necessitates all references to the swap chain to have been cleared, normally. See remarks at:
-          // @url{https://msdn.microsoft.com/fr-fr/library/windows/desktop/bb174577(v=vs.85)}
-          mu->win32->d3d11_device_context->ClearState();
-          HRESULT hr = 0;
-          if (hr = dxgi_swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH|
-              0*DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT), hr != 0)
-          {
-            printf("ERROR: ResizeBuffers() with hr: 0x%x\n", hr);
-          }
+        if (auto dxgi_swap_chain = mu->win32->dxgi_swap_chain) {
+            // TODO(nicolas): remember flags
+            // TODO(nicolas): problem, this necessitates all references to the swap chain to have been cleared, normally. See remarks at:
+            // @url{https://msdn.microsoft.com/fr-fr/library/windows/desktop/bb174577(v=vs.85)}
+            mu->win32->d3d11_device_context->ClearState();
+            HRESULT hr = 0;
+            if (hr = dxgi_swap_chain->ResizeBuffers(
+                        0, 0, 0, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH | 0 * DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT),
+                hr != 0) {
+                printf("ERROR: ResizeBuffers() with hr: 0x%x\n", hr);
+            }
         }
         break;
     case WM_INPUT: {
@@ -115,8 +117,9 @@ static LRESULT CALLBACK Mu_Window_Proc(HWND window, UINT message, WPARAM wparam,
             RAWINPUT *raw_input = (RAWINPUT *)buffer;
             if (raw_input->header.dwType == RIM_TYPEMOUSE && raw_input->data.mouse.usFlags == MOUSE_MOVE_RELATIVE) {
                 // @todo: how can I be seeing double releases?
-                // I'm seeing a mouse press, followed by a release, and at that point I press once more and the button appears to be still down, but I don't receive a press event and however I see a release later. I think it could be because we're seeing multiple WM_INPUT events in this sampling loop and we should not use update_digital_button here.
-                // I solved this very issue in my own mac version
+                // I'm seeing a mouse press, followed by a release, and at that point I press once more and the button appears to be still down, but I don't
+                // receive a press event and however I see a release later. I think it could be because we're seeing multiple WM_INPUT events in this sampling
+                // loop and we should not use update_digital_button here. I solved this very issue in my own mac version
                 mu->mouse.delta_position.x += raw_input->data.mouse.lLastX;
                 mu->mouse.delta_position.y += raw_input->data.mouse.lLastY;
 
@@ -159,14 +162,9 @@ static LRESULT CALLBACK Mu_Window_Proc(HWND window, UINT message, WPARAM wparam,
         }
         break;
     }
-    case WM_DESTROY:
-        mu->quit = MU_TRUE;
-        break;
-    case WM_TIMER:
-        SwitchToFiber(mu->win32->main_fiber);
-        break;
-    default:
-        result = DefWindowProcA(window, message, wparam, lparam);
+    case WM_DESTROY: mu->quit = MU_TRUE; break;
+    case WM_TIMER: SwitchToFiber(mu->win32->main_fiber); break;
+    default: result = DefWindowProcA(window, message, wparam, lparam);
     }
     return result;
 }
@@ -194,8 +192,7 @@ Mu_Bool Mu_Window_Initialize(Mu *mu) {
         window_x = CW_USEDEFAULT;
     }
     int window_y;
-    if (mu->window.position.y ||
-    window_x != CW_USEDEFAULT /* CreateWindow requirement */) {
+    if (mu->window.position.y || window_x != CW_USEDEFAULT /* CreateWindow requirement */) {
 
         window_y = mu->window.position.y;
     } else {
@@ -213,7 +210,7 @@ Mu_Bool Mu_Window_Initialize(Mu *mu) {
     } else {
         window_height = CW_USEDEFAULT;
     }
-mu->win32 = (Mu_Win32*)calloc(1, sizeof *mu->win32);
+    mu->win32 = (Mu_Win32 *)calloc(1, sizeof *mu->win32);
     mu->win32->main_fiber = ConvertThreadToFiber(0);
     Assert(mu->win32->main_fiber);
     mu->win32->message_fiber = CreateFiber(0, (PFIBER_START_ROUTINE)Mu_Window_MessageFiberProc, mu);
@@ -379,10 +376,10 @@ void Mu_Gamepad_Pull(Mu *mu) {
     Mu_UpdateDigitalButton(&mu->gamepad.start_button, (xinput_state.Gamepad.wButtons & XINPUT_GAMEPAD_START) != 0);
     Mu_UpdateAnalogButton(&mu->gamepad.left_trigger, xinput_state.Gamepad.bLeftTrigger / 255.f);
     Mu_UpdateAnalogButton(&mu->gamepad.right_trigger, xinput_state.Gamepad.bRightTrigger / 255.f);
-    #define CONVERT(x) (2.0f * (((x + 32768) / 65535.f) - 0.5f))
+#define CONVERT(x) (2.0f * (((x + 32768) / 65535.f) - 0.5f))
     Mu_UpdateStick(&mu->gamepad.left_thumb_stick, CONVERT(xinput_state.Gamepad.sThumbLX), CONVERT(xinput_state.Gamepad.sThumbLY));
     Mu_UpdateStick(&mu->gamepad.right_thumb_stick, CONVERT(xinput_state.Gamepad.sThumbRX), CONVERT(xinput_state.Gamepad.sThumbRY));
-    #undef CONVERT
+#undef CONVERT
 }
 
 // Mu_Audio
@@ -411,11 +408,11 @@ DWORD WINAPI Mu_Audio_ThreadProc(LPVOID parameter) {
             goto done;
         }
 
-    uint32_t buffer_frame_count;
-    if (mu->win32->audio_client->GetBufferSize(&buffer_frame_count) < 0) {
-        goto done;
-    }
-uint32_t padding_frame_count;
+        uint32_t buffer_frame_count;
+        if (mu->win32->audio_client->GetBufferSize(&buffer_frame_count) < 0) {
+            goto done;
+        }
+        uint32_t padding_frame_count;
         if (mu->win32->audio_client->GetCurrentPadding(&padding_frame_count) < 0) {
             goto done;
         }
@@ -426,8 +423,8 @@ uint32_t padding_frame_count;
         }
         buffer.format = mu->audio.format;
         buffer.samples_count = fill_frame_count * buffer.format.channels;
-    memset(buffer.samples, 0, buffer.samples_count * buffer.format.bytes_per_sample);
-    mu->audio.callback(&buffer);
+        memset(buffer.samples, 0, buffer.samples_count * buffer.format.bytes_per_sample);
+        mu->audio.callback(&buffer);
         if (mu->win32->audio_render_client->ReleaseBuffer(fill_frame_count, 0) < 0) {
             goto done;
         }
@@ -438,15 +435,14 @@ done:
     return result;
 }
 
-static WAVEFORMATEX win32_audio_format = {WAVE_FORMAT_PCM, 2, 44100, 44100*sizeof(int16_t)*2, sizeof(int16_t)*2, sizeof(int16_t)*8, 0};
+static WAVEFORMATEX win32_audio_format = {WAVE_FORMAT_PCM, 2, 44100, 44100 * sizeof(int16_t) * 2, sizeof(int16_t) * 2, sizeof(int16_t) * 8, 0};
 static Mu_AudioFormat mu_audio_format = {44100, 2, 2};
 
 Mu_Bool Mu_Audio_Initialize(Mu *mu) {
     Mu_Bool result = MU_FALSE;
     IMMDeviceEnumerator *device_enumerator = 0;
     IMMDevice *audio_device = 0;
-    if (!mu->audio.callback)
-    {
+    if (!mu->audio.callback) {
         mu->audio.callback = Mu_Audio_DefaultCallback;
     }
     CoInitializeEx(0, COINITBASE_MULTITHREADED);
@@ -466,14 +462,14 @@ Mu_Bool Mu_Audio_Initialize(Mu *mu) {
     if (audio_client->Initialize(AUDCLNT_SHAREMODE_SHARED, audio_client_flags, audio_buffer_duration, 0, &win32_audio_format, 0) < 0) {
         goto done;
     }
-IAudioRenderClient *audio_render_client;
+    IAudioRenderClient *audio_render_client;
     if (audio_client->GetService(IID_PPV_ARGS(&audio_render_client)) < 0) {
         goto done;
     }
-mu->audio.format = mu_audio_format;
-mu->audio.format.samples_per_second = win32_audio_format.nSamplesPerSec;
-mu->audio.format.channels = win32_audio_format.nChannels;
-mu->audio.format.bytes_per_sample = win32_audio_format.wBitsPerSample/8;
+    mu->audio.format = mu_audio_format;
+    mu->audio.format.samples_per_second = win32_audio_format.nSamplesPerSec;
+    mu->audio.format.channels = win32_audio_format.nChannels;
+    mu->audio.format.bytes_per_sample = win32_audio_format.wBitsPerSample / 8;
 
     mu->win32->audio_client = audio_client;
     mu->win32->audio_render_client = audio_render_client;
@@ -495,87 +491,84 @@ done:
 
 #if MU_D3D11_ENABLED
 void Mu_D3D11_Push(Mu *mu) {
-        if (auto swap_chain = mu->win32->dxgi_swap_chain) {
-          swap_chain->Present(1, 0);
-        }
+    if (auto swap_chain = mu->win32->dxgi_swap_chain) {
+        swap_chain->Present(1, 0);
+    }
 }
 
 Mu_Bool Mu_D3D11_Initialize(Mu *mu) {
-        HMODULE d3d11_module = LoadLibraryA("d3d11.dll");
-        if (!d3d11_module) {
-                mu->error = "did not find d3d11.dll";
-                return MU_FALSE;
-        }
-        typedef HRESULT D3D11CreateDeviceAndSwapChainProc(
-                _In_opt_        IDXGIAdapter         *pAdapter,
-                D3D_DRIVER_TYPE      DriverType,
-                HMODULE              Software,
-                UINT                 Flags,
-                _In_opt_  const D3D_FEATURE_LEVEL    *pFeatureLevels,
-                UINT                 FeatureLevels,
-                UINT                 SDKVersion,
-                _In_opt_  const DXGI_SWAP_CHAIN_DESC *pSwapChainDesc,
-                _Out_opt_       IDXGISwapChain       **ppSwapChain,
-                _Out_opt_       ID3D11Device         **ppDevice,
-                _Out_opt_       D3D_FEATURE_LEVEL    *pFeatureLevel,
-                _Out_opt_       ID3D11DeviceContext  **ppImmediateContext
-                );
+    HMODULE d3d11_module = LoadLibraryA("d3d11.dll");
+    if (!d3d11_module) {
+        mu->error = "did not find d3d11.dll";
+        return MU_FALSE;
+    }
+    typedef HRESULT D3D11CreateDeviceAndSwapChainProc(_In_opt_ IDXGIAdapter * pAdapter,
+                                                      D3D_DRIVER_TYPE DriverType,
+                                                      HMODULE Software,
+                                                      UINT Flags,
+                                                      _In_opt_ const D3D_FEATURE_LEVEL *pFeatureLevels,
+                                                      UINT FeatureLevels,
+                                                      UINT SDKVersion,
+                                                      _In_opt_ const DXGI_SWAP_CHAIN_DESC *pSwapChainDesc,
+                                                      _Out_opt_ IDXGISwapChain **ppSwapChain,
+                                                      _Out_opt_ ID3D11Device **ppDevice,
+                                                      _Out_opt_ D3D_FEATURE_LEVEL *pFeatureLevel,
+                                                      _Out_opt_ ID3D11DeviceContext **ppImmediateContext);
 
-        D3D11CreateDeviceAndSwapChainProc *CreateDeviceAndSwapChain = (D3D11CreateDeviceAndSwapChainProc*) GetProcAddress(d3d11_module, "D3D11CreateDeviceAndSwapChain");
-        if (!CreateDeviceAndSwapChain) {
-                mu->error = "can't find D3D11CreateDeviceAndSwapChain in d3d11.dll"; //TODO(nicolas): path of dll here
-                return MU_FALSE;
-        }
+    D3D11CreateDeviceAndSwapChainProc *CreateDeviceAndSwapChain =
+            (D3D11CreateDeviceAndSwapChainProc *)GetProcAddress(d3d11_module, "D3D11CreateDeviceAndSwapChain");
+    if (!CreateDeviceAndSwapChain) {
+        mu->error = "can't find D3D11CreateDeviceAndSwapChain in d3d11.dll"; // TODO(nicolas): path of dll here
+        return MU_FALSE;
+    }
 
-        D3D_FEATURE_LEVEL feature_levels[] = {D3D_FEATURE_LEVEL_11_0};
-        UINT feature_levels_n = sizeof feature_levels / sizeof feature_levels[0];
-        DXGI_SWAP_CHAIN_DESC swap_chain_desc = {};
-        {
-                auto &o = swap_chain_desc;
-                o.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
-                o.SampleDesc.Count = 1; // Default non-AA
-                o.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-                o.BufferCount = 2;
-                o.OutputWindow = mu->win32->window;
-                o.Windowed = TRUE;
-                o.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-                o.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH|
-                        0*DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+    D3D_FEATURE_LEVEL feature_levels[] = {D3D_FEATURE_LEVEL_11_0};
+    UINT feature_levels_n = sizeof feature_levels / sizeof feature_levels[0];
+    DXGI_SWAP_CHAIN_DESC swap_chain_desc = {};
+    {
+        auto &o = swap_chain_desc;
+        o.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+        o.SampleDesc.Count = 1; // Default non-AA
+        o.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+        o.BufferCount = 2;
+        o.OutputWindow = mu->win32->window;
+        o.Windowed = TRUE;
+        o.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+        o.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH | 0 * DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+    }
+    IDXGISwapChain *swap_chain = NULL;
+    ID3D11Device *device = NULL;
+    ID3D11DeviceContext *device_context = NULL;
+    HRESULT hr = CreateDeviceAndSwapChain(NULL /* default adapter */,
+                                          D3D_DRIVER_TYPE_HARDWARE,
+                                          NULL /* software renderer module */,
+                                          0 * D3D11_CREATE_DEVICE_SINGLETHREADED | 1 * D3D11_CREATE_DEVICE_DEBUG | 1 * D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+                                          NULL /* feature_levels */,
+                                          0,
+                                          D3D11_SDK_VERSION,
+                                          &swap_chain_desc,
+                                          &mu->win32->dxgi_swap_chain,
+                                          &mu->win32->d3d11_device,
+                                          feature_levels /* feature level */,
+                                          &mu->win32->d3d11_device_context);
+    if (hr != 0) {
+        mu->error = "CreateDeviceAndSwapChain returned an error";
+        char *d_p = &mu->error_buffer[0];
+        int d_n = sizeof mu->error_buffer;
+        const char *s_p = "CreateDeviceAndSwapChain returned hr=0x";
+        const char nibbles[] = "0123456789ABCDEF";
+        for (; d_n && *s_p; d_n--, s_p++, d_p++)
+            *d_p = *s_p;
+        for (int nibble = (sizeof hr) * 2; d_n && nibble-- > 0; d_n--, d_p++) {
+            *d_p = nibbles[(hr >> (4 * nibble)) & 0xF];
         }
-        IDXGISwapChain *swap_chain = NULL;
-        ID3D11Device *device = NULL;
-        ID3D11DeviceContext *device_context = NULL;
-        HRESULT hr = CreateDeviceAndSwapChain(
-                NULL /* default adapter */,
-                D3D_DRIVER_TYPE_HARDWARE,
-                NULL /* software renderer module */,
-                0*D3D11_CREATE_DEVICE_SINGLETHREADED|
-                1*D3D11_CREATE_DEVICE_DEBUG|
-                1*D3D11_CREATE_DEVICE_BGRA_SUPPORT,
-                NULL /* feature_levels */, 0,
-                D3D11_SDK_VERSION,
-                &swap_chain_desc,
-                &mu->win32->dxgi_swap_chain,
-                &mu->win32->d3d11_device,
-                feature_levels /* feature level */,
-                &mu->win32->d3d11_device_context);
-        if (hr != 0) {
-                mu->error = "CreateDeviceAndSwapChain returned an error";
-                char *d_p = &mu->error_buffer[0];
-                int d_n = sizeof mu->error_buffer;
-                const char* s_p = "CreateDeviceAndSwapChain returned hr=0x";
-                const char nibbles[] = "0123456789ABCDEF"; 
-                for(; d_n && *s_p; d_n--, s_p++, d_p++) *d_p = *s_p;
-                for(int nibble = (sizeof hr)*2; d_n && nibble-- > 0; d_n--, d_p++) {
-                        *d_p = nibbles[(hr>>(4*nibble))&0xF];
-                }
-                if (d_n) {
-                        *d_p = '\0'; 
-                        mu->error = mu->error_buffer;
-                }
-                return MU_FALSE;
+        if (d_n) {
+            *d_p = '\0';
+            mu->error = mu->error_buffer;
         }
-        return MU_TRUE;
+        return MU_FALSE;
+    }
+    return MU_TRUE;
 }
 #endif
 
@@ -655,7 +648,7 @@ Mu_Bool Mu_Initialize(Mu *mu) {
     }
 #if MU_D3D11_ENABLED
     if (!Mu_D3D11_Initialize(mu)) {
-            return MU_FALSE;
+        return MU_FALSE;
     }
 #endif
 #if 0

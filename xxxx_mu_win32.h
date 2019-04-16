@@ -5,15 +5,14 @@
  */
 
 enum {
-     MU_CTRL = 0x11,  // VK_CONTROL
-     MU_ALT = 0x12,   // VK_MENU
-     MU_SHIFT = 0x10, // VK_SHIFT
+    MU_CTRL = 0x11,  // VK_CONTROL
+    MU_ALT = 0x12,   // VK_MENU
+    MU_SHIFT = 0x10, // VK_SHIFT
 };
 
 typedef void *HANDLE;
 typedef struct _XINPUT_STATE XINPUT_STATE;
-typedef unsigned long(__stdcall *XINPUTGETSTATE)(unsigned long dwUserIndex,
-                                                 XINPUT_STATE *pState);
+typedef unsigned long(__stdcall *XINPUTGETSTATE)(unsigned long dwUserIndex, XINPUT_STATE *pState);
 
 struct IAudioClient;
 struct IAudioRenderClient;
@@ -33,5 +32,5 @@ struct Mu_Win32 {
     HANDLE wgl_context;
     struct ID3D11Device *d3d11_device;
     struct ID3D11DeviceContext *d3d11_device_context;
-    struct IDXGISwapChain* dxgi_swap_chain;
+    struct IDXGISwapChain *dxgi_swap_chain;
 };

@@ -560,7 +560,7 @@ Mu_Bool Mu_D3D11_Initialize(Mu *mu) {
     HRESULT hr = CreateDeviceAndSwapChain(NULL /* default adapter */,
                                           D3D_DRIVER_TYPE_HARDWARE,
                                           NULL /* software renderer module */,
-                                          0 * D3D11_CREATE_DEVICE_SINGLETHREADED | 1 * D3D11_CREATE_DEVICE_DEBUG | 1 * D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+                                          0 * D3D11_CREATE_DEVICE_SINGLETHREADED | 0 * D3D11_CREATE_DEVICE_DEBUG | 1 * D3D11_CREATE_DEVICE_BGRA_SUPPORT,
                                           NULL /* feature_levels */,
                                           0,
                                           D3D11_SDK_VERSION,

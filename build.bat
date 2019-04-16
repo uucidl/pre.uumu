@@ -6,7 +6,11 @@ if %ERRORLEVEL% neq 0 goto error_exit
 fxc -T vs_4_0 -E main -Fh ortho_vs.h -Vn d3d11_ortho_vs_bc ortho_vs.hlsl -nologo
 if %ERRORLEVEL% neq 0 goto error_exit
 
-cl -Fe:mu_test.exe pervognsen_mu.cpp mu_test_d3d11_unit.c -Z7 -Od -W1 -nologo ^
+cl -Fe:mu_test_d3d11.exe pervognsen_mu.cpp mu_test_d3d11_unit.c -Z7 -Od -W1 -nologo ^
+   -link -SUBSYSTEM:CONSOLE
+if %ERRORLEVEL% neq 0 goto error_exit
+
+cl -Fe:mu_test_gl.exe pervognsen_mu.cpp mu_test_gl_unit.c -Z7 -Od -W1 -nologo ^
    -link -SUBSYSTEM:CONSOLE
 if %ERRORLEVEL% neq 0 goto error_exit
 

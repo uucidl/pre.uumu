@@ -23,6 +23,9 @@
 #if defined(_WIN32)
 #include "xxxx_mu_win32.h"
 
+#include "deps/uuspdr/include/spdr/spdr.h"
+#include "traces.h"
+
 #if !defined(APIENTRY)
 #define APIENTRY __stdcall
 #endif
@@ -292,7 +295,7 @@ struct GfxQuadCommand {
 int main(int argc, char **argv) {
     mu_test_audiosynth_initialize(&mu_test_audiosynth);
     struct Mu mu = {
-            .window.position.x = 640,
+            .window.position.x = 600,
             .window.size.x = 640,
             .window.size.y = 480,
             .gamepad.left_trigger.threshold = 1.0 / 50.0f,
@@ -458,6 +461,7 @@ int main(int argc, char **argv) {
     struct FlatVertex2d *vb = NULL;
     uint16_t *ib = NULL;
 
+    spdr_enable_trace(gbl_spdr, 1);
     while (Mu_Pull(&mu)) {
         if (cb)
             buf__hdr(cb)->len = 0;
@@ -857,6 +861,13 @@ int main(int argc, char **argv) {
         ++frame_i;
         theta += 0.01f;
     }
+
+    for (FILE *file = fopen("traces.json", "wb"); file;) {
+      spdr_report(gbl_spdr, SPDR_CHROME_REPORT, fputs, file);
+      fclose(file);
+      break;
+    }
+    
     return 0;
 }
 

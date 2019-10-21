@@ -8,6 +8,8 @@ He documented it at:
 - @url: https://www.youtube.com/watch?v=NG_mUhc8LRw
 - @url: https://www.youtube.com/watch?v=pAIdfsT7-EU
 
+He also responded with another iteration called Noir: https://github.com/pervognsen/bitwise/blob/master/noir/noir/noir.ion
+
 ## Goals and pinciples
 
 His goals:

@@ -9,6 +9,7 @@ He documented it at:
 - @url: https://www.youtube.com/watch?v=pAIdfsT7-EU
 
 He also responded with another iteration called Noir: https://github.com/pervognsen/bitwise/blob/master/noir/noir/noir.ion
+- @url: https://youtu.be/s5ezMPgAbPM?t=845 Bitwise Day 18, Making Noir 
 
 ## Goals and pinciples
 

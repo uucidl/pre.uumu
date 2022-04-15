@@ -528,7 +528,7 @@ Mu_Bool Mu_D3D11_Initialize(Mu *mu) {
         mu->error = "did not find d3d11.dll";
         return MU_FALSE;
     }
-    typedef HRESULT D3D11CreateDeviceAndSwapChainProc(_In_opt_ IDXGIAdapter * pAdapter,
+    typedef HRESULT WINAPI D3D11CreateDeviceAndSwapChainProc(_In_opt_ IDXGIAdapter * pAdapter,
                                                       D3D_DRIVER_TYPE DriverType,
                                                       HMODULE Software,
                                                       UINT Flags,
